@@ -510,7 +510,7 @@ import {
         }
 
         if (currentUser) {
-          authButton.textContent = isOwner ? "Owner signed in" : "Sign out";
+          authButton.textContent = "Sign out";
           quotaStatus.textContent = isOwner
             ? `Signed in as owner (${currentUser.email}). AI searches are unlimited.`
             : `Signed in as ${currentUser.email}. Public search limits still apply unless this email is the configured owner.`;
