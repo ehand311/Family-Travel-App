@@ -1,6 +1,26 @@
 const ANON_LIMIT = 3;
 
-export async function onRequestPost({ request, env }) {
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/api/generate-trip") {
+      if (request.method === "GET") {
+        return json({ ok: true, limit: ANON_LIMIT });
+      }
+
+      if (request.method === "POST") {
+        return handleGenerateTrip(request, env);
+      }
+
+      return json({ message: "Method not allowed" }, { status: 405 });
+    }
+
+    return env.ASSETS.fetch(request);
+  }
+};
+
+async function handleGenerateTrip(request, env) {
   const visitorId = getVisitorId(request);
   const nextVisitorId = visitorId || crypto.randomUUID();
   const cookieHeader = makeVisitorCookie(nextVisitorId);
@@ -61,10 +81,6 @@ export async function onRequestPost({ request, env }) {
   );
 }
 
-export function onRequestGet() {
-  return json({ ok: true, limit: ANON_LIMIT });
-}
-
 async function getSupabaseUser(request, env) {
   const authorization = request.headers.get("Authorization");
   if (!authorization?.startsWith("Bearer ")) return null;
@@ -104,11 +120,12 @@ async function incrementAnonymousUsage(env, visitorId) {
     return { allowed: true, count: 1 };
   }
 
-  const nextCount = Number(existing.search_count || 0) + 1;
-  if (Number(existing.search_count || 0) >= ANON_LIMIT) {
-    return { allowed: false, count: Number(existing.search_count || 0) };
+  const currentCount = Number(existing.search_count || 0);
+  if (currentCount >= ANON_LIMIT) {
+    return { allowed: false, count: currentCount };
   }
 
+  const nextCount = currentCount + 1;
   await fetch(`${env.SUPABASE_URL}/rest/v1/search_usage?visitor_id=eq.${encodeURIComponent(visitorId)}`, {
     method: "PATCH",
     headers: {

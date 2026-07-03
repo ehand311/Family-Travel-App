@@ -17,11 +17,14 @@ Astro preview does not run Cloudflare Pages Functions, so local preview uses loc
 npm run build
 ```
 
-Cloudflare Pages settings:
+Cloudflare Workers settings:
 
 - Build command: `npm run build`
-- Build output directory: `dist`
-- Framework preset: Astro
+- Deploy command: `npx wrangler deploy`
+- Project name: `family-travel-app`
+- Static assets directory is configured in [wrangler.jsonc](./wrangler.jsonc) as `./dist`
+
+Cloudflare now deploys this app as a Worker with Static Assets. Astro builds the static site into `dist`, and [src/worker.js](./src/worker.js) handles `/api/generate-trip` before falling back to static assets.
 
 ## Supabase Setup
 
@@ -38,7 +41,7 @@ PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
 PUBLIC_OWNER_EMAIL="you@example.com"
 ```
 
-Cloudflare Pages Function variables/secrets:
+Cloudflare Worker variables/secrets:
 
 ```bash
 SUPABASE_URL="https://your-project.supabase.co"

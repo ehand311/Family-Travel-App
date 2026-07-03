@@ -1,6 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "family-travel-studio",
-  "pages_build_output_dir": "./dist",
-  "compatibility_date": "2026-07-03"
+  "name": "family-travel-app",
+  "main": "./src/worker.js",
+  "compatibility_date": "2026-07-03",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  }
 }
