@@ -1,0 +1,149 @@
+const ANON_LIMIT = 3;
+
+export async function onRequestPost({ request, env }) {
+  const visitorId = getVisitorId(request);
+  const nextVisitorId = visitorId || crypto.randomUUID();
+  const cookieHeader = makeVisitorCookie(nextVisitorId);
+
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    return json(
+      {
+        allowed: true,
+        configured: false,
+        isOwner: false,
+        remaining: ANON_LIMIT,
+        message: "Supabase is not configured yet. Local/demo generation is allowed."
+      },
+      { headers: cookieHeader }
+    );
+  }
+
+  const user = await getSupabaseUser(request, env);
+  const ownerEmail = String(env.OWNER_EMAIL || "").toLowerCase();
+  const isOwner = Boolean(user?.email && ownerEmail && user.email.toLowerCase() === ownerEmail);
+
+  if (isOwner) {
+    return json(
+      {
+        allowed: true,
+        configured: true,
+        isOwner: true,
+        remaining: null,
+        message: "Owner search allowed."
+      },
+      { headers: cookieHeader }
+    );
+  }
+
+  const quota = await incrementAnonymousUsage(env, nextVisitorId);
+  if (!quota.allowed) {
+    return json(
+      {
+        allowed: false,
+        configured: true,
+        isOwner: false,
+        remaining: 0,
+        message: "Demo search limit reached. Sign in as owner to continue."
+      },
+      { status: 429, headers: cookieHeader }
+    );
+  }
+
+  return json(
+    {
+      allowed: true,
+      configured: true,
+      isOwner: false,
+      remaining: Math.max(0, ANON_LIMIT - quota.count),
+      message: "Demo search allowed."
+    },
+    { headers: cookieHeader }
+  );
+}
+
+export function onRequestGet() {
+  return json({ ok: true, limit: ANON_LIMIT });
+}
+
+async function getSupabaseUser(request, env) {
+  const authorization = request.headers.get("Authorization");
+  if (!authorization?.startsWith("Bearer ")) return null;
+
+  const response = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: authorization
+    }
+  });
+
+  if (!response.ok) return null;
+  return response.json();
+}
+
+async function incrementAnonymousUsage(env, visitorId) {
+  const existingResponse = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/search_usage?visitor_id=eq.${encodeURIComponent(visitorId)}&select=visitor_id,search_count`,
+    { headers: serviceHeaders(env) }
+  );
+
+  if (!existingResponse.ok) {
+    return { allowed: true, count: 1 };
+  }
+
+  const existingRows = await existingResponse.json();
+  const existing = existingRows[0];
+  if (!existing) {
+    await fetch(`${env.SUPABASE_URL}/rest/v1/search_usage`, {
+      method: "POST",
+      headers: {
+        ...serviceHeaders(env),
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify({ visitor_id: visitorId, search_count: 1 })
+    });
+    return { allowed: true, count: 1 };
+  }
+
+  const nextCount = Number(existing.search_count || 0) + 1;
+  if (Number(existing.search_count || 0) >= ANON_LIMIT) {
+    return { allowed: false, count: Number(existing.search_count || 0) };
+  }
+
+  await fetch(`${env.SUPABASE_URL}/rest/v1/search_usage?visitor_id=eq.${encodeURIComponent(visitorId)}`, {
+    method: "PATCH",
+    headers: {
+      ...serviceHeaders(env),
+      Prefer: "return=minimal"
+    },
+    body: JSON.stringify({ search_count: nextCount, last_search_at: new Date().toISOString() })
+  });
+
+  return { allowed: true, count: nextCount };
+}
+
+function serviceHeaders(env) {
+  return {
+    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    "Content-Type": "application/json"
+  };
+}
+
+function getVisitorId(request) {
+  const cookie = request.headers.get("Cookie") || "";
+  const match = cookie.match(/(?:^|;\s*)fts_visitor=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function makeVisitorCookie(visitorId) {
+  return {
+    "Set-Cookie": `fts_visitor=${encodeURIComponent(visitorId)}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly; Secure`
+  };
+}
+
+function json(body, init = {}) {
+  return Response.json(body, {
+    status: init.status || 200,
+    headers: init.headers || {}
+  });
+}
