@@ -379,7 +379,7 @@ import {
 
       const storageKey = "family-travel-studio-plans";
       const localSearchKey = "family-travel-studio-local-searches";
-      const supabaseUrl = cleanEnvValue(import.meta.env.PUBLIC_SUPABASE_URL);
+      const supabaseUrl = normalizeSupabaseUrl(import.meta.env.PUBLIC_SUPABASE_URL);
       const supabaseAnonKey = cleanEnvValue(import.meta.env.PUBLIC_SUPABASE_ANON_KEY);
       const ownerEmail = String(import.meta.env.PUBLIC_OWNER_EMAIL || "").toLowerCase();
       let supabaseConfigIssue = "";
@@ -392,7 +392,7 @@ import {
           supabase = createClient(supabaseUrl, supabaseAnonKey);
         }
       } catch {
-        supabaseConfigIssue = "Supabase could not start. Check that PUBLIC_SUPABASE_URL is a valid https://...supabase.co URL and does not include extra quotes.";
+        supabaseConfigIssue = "Supabase could not start. Check that PUBLIC_SUPABASE_URL is a valid https://...supabase.co URL or Supabase project ref.";
       }
       let activePlan: TripPlan | null = null;
       let currentUser: User | null = null;
@@ -542,6 +542,13 @@ import {
 
       function cleanEnvValue(value: unknown) {
         return String(value || "").trim().replace(/^["']|["']$/g, "");
+      }
+
+      function normalizeSupabaseUrl(value: unknown) {
+        const cleaned = cleanEnvValue(value).replace(/\/+$/, "");
+        if (!cleaned || /^https?:\/\//i.test(cleaned)) return cleaned;
+        if (/^[a-z0-9]+$/i.test(cleaned)) return `https://${cleaned}.supabase.co`;
+        return cleaned;
       }
 
       async function getAccessToken() {

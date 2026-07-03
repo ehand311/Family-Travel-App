@@ -24,8 +24,15 @@ async function handleGenerateTrip(request, env) {
   const visitorId = getVisitorId(request);
   const nextVisitorId = visitorId || crypto.randomUUID();
   const cookieHeader = makeVisitorCookie(nextVisitorId);
+  const supabaseUrl = normalizeSupabaseUrl(env.SUPABASE_URL);
+  const serviceRoleKey = cleanEnvValue(env.SUPABASE_SERVICE_ROLE_KEY);
+  const config = {
+    ...env,
+    SUPABASE_URL: supabaseUrl,
+    SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey
+  };
 
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!supabaseUrl || !serviceRoleKey) {
     return json(
       {
         allowed: true,
@@ -38,8 +45,8 @@ async function handleGenerateTrip(request, env) {
     );
   }
 
-  const user = await getSupabaseUser(request, env);
-  const ownerEmail = String(env.OWNER_EMAIL || "").toLowerCase();
+  const user = await getSupabaseUser(request, config);
+  const ownerEmail = cleanEnvValue(env.OWNER_EMAIL).toLowerCase();
   const isOwner = Boolean(user?.email && ownerEmail && user.email.toLowerCase() === ownerEmail);
 
   if (isOwner) {
@@ -55,7 +62,7 @@ async function handleGenerateTrip(request, env) {
     );
   }
 
-  const quota = await incrementAnonymousUsage(env, nextVisitorId);
+  const quota = await incrementAnonymousUsage(config, nextVisitorId);
   if (!quota.allowed) {
     return json(
       {
@@ -156,6 +163,17 @@ function makeVisitorCookie(visitorId) {
   return {
     "Set-Cookie": `fts_visitor=${encodeURIComponent(visitorId)}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly; Secure`
   };
+}
+
+function cleanEnvValue(value) {
+  return String(value || "").trim().replace(/^["']|["']$/g, "");
+}
+
+function normalizeSupabaseUrl(value) {
+  const cleaned = cleanEnvValue(value).replace(/\/+$/, "");
+  if (!cleaned || /^https?:\/\//i.test(cleaned)) return cleaned;
+  if (/^[a-z0-9]+$/i.test(cleaned)) return `https://${cleaned}.supabase.co`;
+  return cleaned;
 }
 
 function json(body, init = {}) {
