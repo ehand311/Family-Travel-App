@@ -379,10 +379,21 @@ import {
 
       const storageKey = "family-travel-studio-plans";
       const localSearchKey = "family-travel-studio-local-searches";
-      const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL as string | undefined;
-      const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string | undefined;
+      const supabaseUrl = cleanEnvValue(import.meta.env.PUBLIC_SUPABASE_URL);
+      const supabaseAnonKey = cleanEnvValue(import.meta.env.PUBLIC_SUPABASE_ANON_KEY);
       const ownerEmail = String(import.meta.env.PUBLIC_OWNER_EMAIL || "").toLowerCase();
-      const supabase: SupabaseClient | null = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+      let supabaseConfigIssue = "";
+      let supabase: SupabaseClient | null = null;
+      try {
+        if (!supabaseUrl || !supabaseAnonKey) {
+          supabaseConfigIssue = "Supabase is not configured yet. Add PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY to the Cloudflare build variables, then redeploy.";
+        } else {
+          new URL(supabaseUrl);
+          supabase = createClient(supabaseUrl, supabaseAnonKey);
+        }
+      } catch {
+        supabaseConfigIssue = "Supabase could not start. Check that PUBLIC_SUPABASE_URL is a valid https://...supabase.co URL and does not include extra quotes.";
+      }
       let activePlan: TripPlan | null = null;
       let currentUser: User | null = null;
 
@@ -426,7 +437,8 @@ import {
           await renderSavedPlans();
           return;
         }
-        authDialog?.showModal();
+        setAuthMessage(supabaseConfigIssue || "Use the email connected to your Supabase owner account.");
+        openAuthDialog();
       });
 
       authCancelButton?.addEventListener("click", () => authDialog?.close());
@@ -434,7 +446,7 @@ import {
       authForm?.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (!supabase || !authEmailInput || !authMessage) {
-          setAuthMessage("Supabase is not configured yet. Add your Supabase URL and anon key to enable sign in.");
+          setAuthMessage(supabaseConfigIssue || "Supabase is not configured yet. Add your Supabase URL and anon key to enable sign in.");
           return;
         }
 
@@ -493,7 +505,7 @@ import {
         const isOwner = isOwnerUser();
         if (!supabase) {
           authButton.textContent = "Sign in";
-          quotaStatus.textContent = "Supabase is not configured yet. Preview uses local saves and local demo search counts.";
+          quotaStatus.textContent = supabaseConfigIssue || "Supabase is not configured yet. Preview uses local saves and local demo search counts.";
           return;
         }
 
@@ -516,6 +528,20 @@ import {
 
       function setAuthMessage(message: string) {
         if (authMessage) authMessage.textContent = message;
+      }
+
+      function openAuthDialog() {
+        if (!authDialog) return;
+        if (authDialog.open) return;
+        try {
+          authDialog.showModal();
+        } catch {
+          authDialog.setAttribute("open", "");
+        }
+      }
+
+      function cleanEnvValue(value: unknown) {
+        return String(value || "").trim().replace(/^["']|["']$/g, "");
       }
 
       async function getAccessToken() {
@@ -552,7 +578,7 @@ import {
           if (response.status === 402 || response.status === 429) {
             const result = await response.json().catch(() => ({ message: "Demo search limit reached. Sign in to continue." }));
             if (quotaStatus) quotaStatus.textContent = result.message;
-            authDialog?.showModal();
+            openAuthDialog();
             return false;
           }
         } catch {
@@ -567,7 +593,7 @@ import {
         const used = getLocalSearchCount();
         if (used >= 3 && supabase) {
           if (quotaStatus) quotaStatus.textContent = "Demo search limit reached. Sign in as owner to continue.";
-          authDialog?.showModal();
+          openAuthDialog();
           return false;
         }
 
