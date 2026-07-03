@@ -411,9 +411,9 @@ import {
       form?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const data = new FormData(form);
-        const allowed = await registerSearchAttempt(data);
-        if (!allowed) return;
-        activePlan = createPlan(data);
+        const generatedPlan = await generateTripPlan(data);
+        if (!generatedPlan) return;
+        activePlan = generatedPlan;
         renderPlan(activePlan);
       });
 
@@ -557,8 +557,9 @@ import {
         return data.session?.access_token || null;
       }
 
-      async function registerSearchAttempt(data: FormData) {
+      async function generateTripPlan(data: FormData): Promise<TripPlan | null> {
         const token = await getAccessToken();
+        if (quotaStatus) quotaStatus.textContent = "Building AI trip options...";
         try {
           const response = await fetch("/api/generate-trip", {
             method: "POST",
@@ -567,46 +568,73 @@ import {
               ...(token ? { Authorization: `Bearer ${token}` } : {})
             },
             body: JSON.stringify({
-              tripInput: Object.fromEntries(data.entries()),
+              tripInput: formDataToTripInput(data),
               localPreview: !supabase
             })
           });
 
           if (response.ok) {
             const result = await response.json();
-            if (quotaStatus && typeof result.remaining === "number") {
-              quotaStatus.textContent = result.isOwner
-                ? "Owner mode active. AI searches are unlimited."
-                : `Public demo search allowed. ${result.remaining} of 3 searches remaining.`;
+            if (result.plan) {
+              if (quotaStatus) {
+                quotaStatus.textContent = result.isOwner
+                  ? "Owner mode active. AI trip options generated."
+                  : `AI trip options generated. ${result.remaining} of 3 public searches remaining.`;
+              }
+              return normalizeSavedPlan(result.plan);
             }
-            return true;
+            if (quotaStatus) {
+              quotaStatus.textContent = result.message || "AI generation is unavailable, using a local preview.";
+            }
+            return createPlan(data);
           }
 
           if (response.status === 402 || response.status === 429) {
             const result = await response.json().catch(() => ({ message: "Demo search limit reached. Sign in to continue." }));
             if (quotaStatus) quotaStatus.textContent = result.message;
             openAuthDialog();
-            return false;
+            return null;
           }
+
+          const result = await response.json().catch(() => ({ message: "AI generation failed. Using a local preview." }));
+          if (quotaStatus) quotaStatus.textContent = result.message;
+          return createPlan(data);
         } catch {
           // Astro preview does not serve Pages Functions; keep local development usable.
         }
 
         if (isOwnerUser()) {
-          if (quotaStatus) quotaStatus.textContent = "Owner mode active locally. AI searches are unlimited.";
-          return true;
+          if (quotaStatus) quotaStatus.textContent = "Owner mode active locally. Using local preview because the Worker API is unavailable.";
+          return createPlan(data);
         }
 
         const used = getLocalSearchCount();
         if (used >= 3 && supabase) {
           if (quotaStatus) quotaStatus.textContent = "Demo search limit reached. Sign in as owner to continue.";
           openAuthDialog();
-          return false;
+          return null;
         }
 
         localStorage.setItem(localSearchKey, String(used + 1));
         if (quotaStatus) quotaStatus.textContent = `Local preview search ${used + 1}/3. Production uses the server-side Supabase gate.`;
-        return true;
+        return createPlan(data);
+      }
+
+      function formDataToTripInput(data: FormData) {
+        return {
+          destination: String(data.get("destination") || ""),
+          origin: String(data.get("origin") || ""),
+          startDate: String(data.get("startDate") || ""),
+          endDate: String(data.get("endDate") || ""),
+          kids: String(data.get("kids") || ""),
+          pace: String(data.get("pace") || ""),
+          lodgingBudget: Number(data.get("lodgingBudget") || 0),
+          flightBudget: Number(data.get("flightBudget") || 0),
+          foodBudget: Number(data.get("foodBudget") || 0),
+          activityBudget: Number(data.get("activityBudget") || 0),
+          priorities: data.getAll("priority").map(String),
+          notes: String(data.get("notes") || "")
+        };
       }
 
       function getLocalSearchCount() {

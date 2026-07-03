@@ -47,18 +47,20 @@ Cloudflare Worker variables/secrets:
 SUPABASE_URL="https://your-project.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
 OWNER_EMAIL="you@example.com"
-OPENAI_API_KEY="add-later-when-real-ai-generation-is-enabled"
+OPENAI_API_KEY="your-openai-api-key"
+# Optional. Defaults to gpt-4o-mini.
+OPENAI_MODEL="gpt-4o-mini"
 ```
 
 ## Usage Gate
 
-The current `/api/generate-trip` Pages Function is the server-side gate for future paid AI calls:
+The `/api/generate-trip` Worker endpoint is the server-side gate for paid AI calls:
 
 - Owner email signed in through Supabase: unlimited searches.
-- Anonymous visitor: 3 demo searches.
+- Anonymous visitor: 3 AI demo searches.
 - After 3 searches: endpoint returns a limit response and the UI opens sign-in.
-
-The app still uses the local option generator today. The next step is replacing that local generator with the model response from `/api/generate-trip` after the quota check passes.
+- Once a request is allowed, the Worker calls OpenAI and returns a structured trip board.
+- If OpenAI is unavailable, the UI falls back to the local generator so the app remains usable.
 
 ## Saved Trips
 
