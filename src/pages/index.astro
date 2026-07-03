@@ -169,7 +169,7 @@ import {
 
             <button class="primary-action" type="submit">
               <Search size={18} />
-              Generate options
+              <span>Generate options</span>
             </button>
           </form>
         </aside>
@@ -364,6 +364,8 @@ import {
       const buildTripButton = document.querySelector<HTMLButtonElement>("#build-trip");
       const saveButton = document.querySelector<HTMLButtonElement>("#save-plan");
       const downloadButton = document.querySelector<HTMLButtonElement>("#download-plan");
+      const generateButton = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+      const generateButtonLabel = generateButton?.querySelector<HTMLSpanElement>("span");
       const savedList = document.querySelector<HTMLDivElement>("#saved-list");
       const categoryTemplate = document.querySelector<HTMLTemplateElement>("#category-template");
       const optionTemplate = document.querySelector<HTMLTemplateElement>("#option-template");
@@ -411,10 +413,15 @@ import {
       form?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const data = new FormData(form);
-        const generatedPlan = await generateTripPlan(data);
-        if (!generatedPlan) return;
-        activePlan = generatedPlan;
-        renderPlan(activePlan);
+        setLoadingState(true, data);
+        try {
+          const generatedPlan = await generateTripPlan(data);
+          if (!generatedPlan) return;
+          activePlan = generatedPlan;
+          renderPlan(activePlan);
+        } finally {
+          setLoadingState(false);
+        }
       });
 
       buildTripButton?.addEventListener("click", () => {
@@ -797,7 +804,7 @@ import {
             name.textContent = option.name;
             price.textContent = option.price;
             why.textContent = option.why;
-            meta.innerHTML = `<span>${option.timing}</span>${option.tags.map((tag) => `<span>${tag}</span>`).join("")}`;
+            renderMetaPills(meta, [option.timing, ...(option.tags || [])]);
             link.href = option.link;
             link.textContent = category.key === "flights" ? "Search flights" : "Open search";
             if (checkbox.checked && !plan.selectedOptionIds.includes(option.id)) {
@@ -809,6 +816,71 @@ import {
 
           resultGrid.append(fragment);
         });
+      }
+
+      function setLoadingState(isLoading: boolean, data?: FormData) {
+        document.body.classList.toggle("is-loading", isLoading);
+        if (generateButton) generateButton.disabled = isLoading;
+        if (generateButtonLabel) generateButtonLabel.textContent = isLoading ? "Building options..." : "Generate options";
+        if (!isLoading && buildTripButton && !activePlan) buildTripButton.disabled = true;
+        if (!isLoading && saveButton && !activePlan) saveButton.disabled = true;
+        if (!isLoading && downloadButton && !activePlan) downloadButton.disabled = true;
+
+        if (isLoading && data) {
+          renderLoadingState(String(data.get("destination") || "your trip"));
+        }
+      }
+
+      function renderLoadingState(destination: string) {
+        if (!resultGrid || !planTitle || !saveButton || !downloadButton || !buildTripButton) return;
+        planTitle.textContent = `Building ${destination} options...`;
+        saveButton.disabled = true;
+        downloadButton.disabled = true;
+        buildTripButton.disabled = true;
+        resultGrid.innerHTML = ["Lodging", "Flights", "Restaurants", "Things to do"]
+          .map(
+            (label) => `
+              <article class="result-card loading-card" aria-label="Loading ${label}">
+                <div class="result-card-header">
+                  <span class="loading-icon"></span>
+                  <div>
+                    <p class="category-kicker">${label}</p>
+                    <h3><span class="skeleton skeleton-title"></span></h3>
+                    <p class="category-summary"><span class="skeleton skeleton-line"></span></p>
+                  </div>
+                </div>
+                <div class="option-list">
+                  ${[1, 2, 3]
+                    .map(
+                      () => `
+                        <article class="option-card skeleton-option">
+                          <span class="skeleton-check"></span>
+                          <div class="option-main">
+                            <span class="skeleton skeleton-title"></span>
+                            <span class="skeleton skeleton-line"></span>
+                            <span class="skeleton skeleton-line short"></span>
+                          </div>
+                        </article>
+                      `
+                    )
+                    .join("")}
+                </div>
+              </article>
+            `
+          )
+          .join("");
+      }
+
+      function renderMetaPills(container: HTMLElement, values: string[]) {
+        container.innerHTML = "";
+        values
+          .map((value) => value.trim())
+          .filter(Boolean)
+          .forEach((value) => {
+            const pill = document.createElement("span");
+            pill.textContent = value;
+            container.append(pill);
+          });
       }
 
       function updateSelection(optionId: string, selected: boolean) {
