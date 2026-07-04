@@ -924,6 +924,42 @@ textarea:focus {
   line-height: 1.35;
 }
 
+.saved-detail-meta,
+.saved-budget-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.saved-budget-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.saved-detail-meta span,
+.saved-budget-row span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  color: #3a464b;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  background: #f8faf7;
+  border: 1px solid #dfe8e2;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.saved-detail-meta strong,
+.saved-budget-row strong,
+.saved-detail-subhead strong,
+.saved-itinerary-empty strong {
+  color: var(--teal-dark);
+  font-size: 0.76rem;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .saved-detail-list {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -954,6 +990,59 @@ textarea:focus {
   font-size: 0.9rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.saved-itinerary-preview,
+.saved-itinerary-empty {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #f4faf8;
+  border: 1px solid #d5e7e1;
+  border-radius: 8px;
+}
+
+.saved-detail-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.saved-detail-subhead span,
+.saved-itinerary-empty span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.saved-itinerary-preview ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.saved-itinerary-preview li {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.saved-itinerary-preview li strong {
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.saved-itinerary-preview li span {
+  color: #3a464b;
+  font-size: 0.9rem;
+  line-height: 1.35;
 }
 
 .saved-actions button:hover,
@@ -1039,6 +1128,12 @@ textarea:focus {
   }
 
   .saved-detail-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .saved-detail-meta,
+  .saved-budget-row,
+  .saved-itinerary-preview ol {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1153,6 +1248,12 @@ textarea:focus {
   }
 
   .saved-detail-list {
+    grid-template-columns: 1fr;
+  }
+
+  .saved-detail-meta,
+  .saved-budget-row,
+  .saved-itinerary-preview ol {
     grid-template-columns: 1fr;
   }
 

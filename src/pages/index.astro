@@ -473,13 +473,7 @@ import {
 
       downloadButton?.addEventListener("click", () => {
         if (!activePlan) return;
-        const blob = new Blob([JSON.stringify(activePlan, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = `${slugify(activePlan.destination)}-family-trip.json`;
-        anchor.click();
-        URL.revokeObjectURL(url);
+        downloadPlan(activePlan);
       });
 
       startDateInput?.addEventListener("change", () => {
@@ -1093,6 +1087,7 @@ import {
           });
 
           if (!error) {
+            if (quotaStatus) quotaStatus.textContent = `${planDisplayName(plan)} saved to your account.`;
             await renderSavedPlans();
             return;
           }
@@ -1103,6 +1098,7 @@ import {
         const plans = getLocalSavedPlans();
         const withoutDuplicate = plans.filter((savedPlan) => savedPlan.id !== plan.id);
         localStorage.setItem(storageKey, JSON.stringify([plan, ...withoutDuplicate].slice(0, 12)));
+        if (quotaStatus) quotaStatus.textContent = `${planDisplayName(plan)} saved locally.`;
         await renderSavedPlans();
       }
 
@@ -1128,7 +1124,7 @@ import {
             <div>
               <p>${escapeHtml(plan.dateRange)}</p>
               <h3>${escapeHtml(planDisplayName(plan))}</h3>
-              <span>${plan.nights} nights | ${plan.selectedOptionIds?.length || 0} selected</span>
+              <span>${plan.nights} nights | ${plan.selectedOptionIds?.length || 0} selected | ${plan.itinerary?.length || 0} itinerary days</span>
             </div>
             <div class="saved-actions">
               <button type="button" data-action="open" data-id="${plan.id}" title="Open saved details">Open</button>
@@ -1189,10 +1185,42 @@ import {
           .map((category) => {
             const options = category.options || [];
             const selected = options.filter((option) => plan.selectedOptionIds?.includes(option.id));
-            const labels = (selected.length ? selected : options.slice(0, 1)).map((option) => option.name).join(", ");
+            const labels = (selected.length ? selected : options.slice(0, 1))
+              .map((option) => `${option.name} (${option.price})`)
+              .join(", ");
             return `<li><strong>${escapeHtml(category.kicker || category.title)}</strong><span>${escapeHtml(labels || "No option selected")}</span></li>`;
           })
           .join("");
+        const prioritySummary = plan.priorities?.length ? plan.priorities.join(", ") : "Flexible";
+        const budgetSummary = [
+          ["Lodging", `$${plan.budget?.lodging || 0}/night`],
+          ["Flights", `$${plan.budget?.flight || 0}/person`],
+          ["Food", `$${plan.budget?.food || 0}/meal`],
+          ["Activities", `$${plan.budget?.activity || 0}/day`]
+        ]
+          .map(([label, value]) => `<span><strong>${escapeHtml(label)}</strong>${escapeHtml(value)}</span>`)
+          .join("");
+        const itineraryPreview = plan.itinerary?.length
+          ? `
+            <div class="saved-itinerary-preview">
+              <div class="saved-detail-subhead">
+                <strong>Itinerary preview</strong>
+                <span>${plan.itinerary.length} days saved</span>
+              </div>
+              <ol>
+                ${plan.itinerary
+                  .slice(0, 4)
+                  .map((day) => `<li><strong>Day ${day.day}: ${escapeHtml(day.title)}</strong><span>${escapeHtml(day.morning)} / ${escapeHtml(day.afternoon)}</span></li>`)
+                  .join("")}
+              </ol>
+            </div>
+          `
+          : `
+            <div class="saved-itinerary-empty">
+              <strong>No itinerary saved yet.</strong>
+              <span>Load this board, pick the options you like, then use Build this trip.</span>
+            </div>
+          `;
 
         savedDetail.innerHTML = `
           <div class="saved-detail-header">
@@ -1203,12 +1231,20 @@ import {
             </div>
             <div class="saved-actions">
               <button type="button" data-detail-action="load">Load</button>
+              <button type="button" data-detail-action="view-itinerary">Itinerary</button>
+              <button type="button" data-detail-action="export">Export</button>
               <button type="button" data-detail-action="rename">Rename</button>
               <button type="button" data-detail-action="delete">${iconFor("trash")}</button>
             </div>
           </div>
+          <div class="saved-detail-meta">
+            <span><strong>Pace</strong>${escapeHtml(plan.pace)}</span>
+            <span><strong>Priorities</strong>${escapeHtml(prioritySummary)}</span>
+            <span><strong>Notes</strong>${escapeHtml(plan.notes || "None added")}</span>
+          </div>
+          <div class="saved-budget-row">${budgetSummary}</div>
           <ul class="saved-detail-list">${categorySummary}</ul>
-          <p class="muted">${plan.itinerary?.length ? `${plan.itinerary.length} itinerary days saved.` : "No itinerary saved yet."}</p>
+          ${itineraryPreview}
         `;
 
         savedDetail.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
@@ -1219,6 +1255,15 @@ import {
               renderPlan(activePlan);
               renderItinerary(activePlan);
               document.querySelector("#results")?.scrollIntoView({ behavior: "smooth" });
+            }
+            if (action === "view-itinerary") {
+              activePlan = normalizeSavedPlan(plan);
+              renderPlan(activePlan);
+              renderItinerary(activePlan);
+              document.querySelector("#itinerary")?.scrollIntoView({ behavior: "smooth" });
+            }
+            if (action === "export") {
+              downloadPlan(plan);
             }
             if (action === "rename") {
               const title = window.prompt("Rename saved trip", planDisplayName(plan));
@@ -1248,6 +1293,16 @@ import {
 
       function planDisplayName(plan: TripPlan) {
         return plan.title?.trim() || `${plan.destination} family trip`;
+      }
+
+      function downloadPlan(plan: TripPlan) {
+        const blob = new Blob([JSON.stringify(plan, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `${slugify(plan.destination)}-family-trip.json`;
+        anchor.click();
+        URL.revokeObjectURL(url);
       }
 
       function escapeHtml(value: unknown) {
