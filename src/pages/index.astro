@@ -41,6 +41,7 @@ import {
           <nav class="nav-pills" aria-label="Planner views">
             <a href="#planner">Plan</a>
             <a href="#results">Options</a>
+            <a href="#builder">Builder</a>
             <a href="#itinerary">Itinerary</a>
             <a href="#saved">Saved</a>
           </nav>
@@ -218,6 +219,85 @@ import {
         </div>
       </section>
 
+      <section class="builder-layout" id="builder" aria-live="polite">
+        <div class="section-title">
+          <p class="eyebrow"><Sparkles size={15} /> Trip builder</p>
+          <h2 id="builder-title">Choose options before building the itinerary.</h2>
+        </div>
+        <div class="builder-grid">
+          <div class="selected-builder">
+            <div class="builder-subhead">
+              <strong>Selected for trip</strong>
+              <span id="builder-count">0 options</span>
+            </div>
+            <div class="builder-selected-list" id="builder-selected-list">
+              <article class="empty-state compact-empty">
+                <h3>No options selected yet.</h3>
+                <p>Generate a board, then add the lodging, flights, meals, and activities you want.</p>
+              </article>
+            </div>
+          </div>
+          <form class="builder-controls" id="builder-controls">
+            <div class="builder-subhead">
+              <strong>Itinerary controls</strong>
+              <span>Saved with this board</span>
+            </div>
+            <div class="field-grid">
+              <label>
+                <span>Arrival</span>
+                <select id="arrival-window" name="arrivalWindow">
+                  <option value="morning">Morning</option>
+                  <option value="midday" selected>Midday</option>
+                  <option value="evening">Evening</option>
+                </select>
+              </label>
+              <label>
+                <span>Departure</span>
+                <select id="departure-window" name="departureWindow">
+                  <option value="morning">Morning</option>
+                  <option value="midday" selected>Midday</option>
+                  <option value="evening">Evening</option>
+                </select>
+              </label>
+            </div>
+            <div class="field-grid">
+              <label>
+                <span>Nap window</span>
+                <select id="nap-window" name="napWindow">
+                  <option value="12:30-2:30 PM">12:30-2:30 PM</option>
+                  <option value="1:00-3:00 PM" selected>1:00-3:00 PM</option>
+                  <option value="1:30-3:30 PM">1:30-3:30 PM</option>
+                </select>
+              </label>
+              <label>
+                <span>Dinner time</span>
+                <select id="dinner-time" name="dinnerTime">
+                  <option value="4:45 PM">4:45 PM</option>
+                  <option value="5:15 PM" selected>5:15 PM</option>
+                  <option value="5:45 PM">5:45 PM</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              <span>Daily pace</span>
+              <select id="daily-pace" name="dailyPace">
+                <option value="easy">Easy</option>
+                <option value="balanced" selected>Balanced</option>
+                <option value="full">Full</option>
+              </select>
+            </label>
+            <label>
+              <span>Builder notes</span>
+              <textarea id="builder-notes" name="builderNotes" rows="3" placeholder="Must-have stops, nap rules, dinner preferences..."></textarea>
+            </label>
+            <button class="primary-action" id="build-itinerary" type="button" disabled>
+              <Sparkles size={18} />
+              <span>Build itinerary</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
       <section class="itinerary-layout" id="itinerary" aria-live="polite">
         <div class="section-title">
           <p class="eyebrow"><Clock3 size={15} /> Built itinerary</p>
@@ -335,6 +415,15 @@ import {
         notes: string;
       };
 
+      type BuilderSettings = {
+        arrivalWindow: string;
+        departureWindow: string;
+        napWindow: string;
+        dinnerTime: string;
+        dailyPace: string;
+        notes: string;
+      };
+
       type TripPlan = {
         id: string;
         title?: string;
@@ -348,6 +437,7 @@ import {
         notes: string;
         createdAt: string;
         selectedOptionIds: string[];
+        builder: BuilderSettings;
         itinerary: ItineraryDay[];
         categories: PlanCategory[];
       };
@@ -366,10 +456,21 @@ import {
       const planTitle = document.querySelector<HTMLHeadingElement>("#plan-title");
       const itineraryTitle = document.querySelector<HTMLHeadingElement>("#itinerary-title");
       const buildTripButton = document.querySelector<HTMLButtonElement>("#build-trip");
+      const buildItineraryButton = document.querySelector<HTMLButtonElement>("#build-itinerary");
       const saveButton = document.querySelector<HTMLButtonElement>("#save-plan");
       const downloadButton = document.querySelector<HTMLButtonElement>("#download-plan");
       const generateButton = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
       const generateButtonLabel = generateButton?.querySelector<HTMLSpanElement>("span");
+      const builderTitle = document.querySelector<HTMLHeadingElement>("#builder-title");
+      const builderCount = document.querySelector<HTMLSpanElement>("#builder-count");
+      const builderSelectedList = document.querySelector<HTMLDivElement>("#builder-selected-list");
+      const builderControls = document.querySelector<HTMLFormElement>("#builder-controls");
+      const arrivalWindowInput = document.querySelector<HTMLSelectElement>("#arrival-window");
+      const departureWindowInput = document.querySelector<HTMLSelectElement>("#departure-window");
+      const napWindowInput = document.querySelector<HTMLSelectElement>("#nap-window");
+      const dinnerTimeInput = document.querySelector<HTMLSelectElement>("#dinner-time");
+      const dailyPaceInput = document.querySelector<HTMLSelectElement>("#daily-pace");
+      const builderNotesInput = document.querySelector<HTMLTextAreaElement>("#builder-notes");
       const savedList = document.querySelector<HTMLDivElement>("#saved-list");
       const savedDetail = document.querySelector<HTMLDivElement>("#saved-detail");
       const categoryTemplate = document.querySelector<HTMLTemplateElement>("#category-template");
@@ -423,8 +524,10 @@ import {
         try {
           const generatedPlan = await generateTripPlan(data);
           if (!generatedPlan) return;
-          activePlan = generatedPlan;
+          activePlan = ensureDefaultSelections(generatedPlan);
           renderPlan(activePlan);
+          renderBuilder(activePlan);
+          renderItinerary(activePlan);
         } finally {
           setLoadingState(false);
         }
@@ -432,7 +535,25 @@ import {
 
       buildTripButton?.addEventListener("click", () => {
         if (!activePlan) return;
+        document.querySelector("#builder")?.scrollIntoView({ behavior: "smooth" });
+      });
+
+      buildItineraryButton?.addEventListener("click", () => {
+        if (!activePlan) return;
         void buildTripItinerary();
+      });
+
+      builderControls?.addEventListener("change", () => {
+        if (!activePlan) return;
+        activePlan.builder = getBuilderSettings();
+        activePlan.itinerary = [];
+        renderItinerary(activePlan);
+        renderBuilder(activePlan);
+      });
+
+      builderNotesInput?.addEventListener("input", () => {
+        if (!activePlan) return;
+        activePlan.builder = getBuilderSettings();
       });
 
       saveButton?.addEventListener("click", async () => {
@@ -676,9 +797,50 @@ import {
           notes,
           createdAt: new Date().toISOString(),
           selectedOptionIds: [],
+          builder: defaultBuilderSettings(pace),
           itinerary: [],
           categories: makeCategories(destination, origin, destinationProfile, budget, priorities, pace)
         };
+      }
+
+      function defaultBuilderSettings(pace = "balanced"): BuilderSettings {
+        return {
+          arrivalWindow: "midday",
+          departureWindow: "midday",
+          napWindow: "1:00-3:00 PM",
+          dinnerTime: "5:15 PM",
+          dailyPace: pace === "full" ? "balanced" : pace || "balanced",
+          notes: ""
+        };
+      }
+
+      function ensureDefaultSelections(plan: TripPlan): TripPlan {
+        if (plan.selectedOptionIds?.length) return plan;
+        return {
+          ...plan,
+          selectedOptionIds: plan.categories.flatMap((category) => category.options[0]?.id || []).filter(Boolean)
+        };
+      }
+
+      function getBuilderSettings(): BuilderSettings {
+        return {
+          arrivalWindow: arrivalWindowInput?.value || "midday",
+          departureWindow: departureWindowInput?.value || "midday",
+          napWindow: napWindowInput?.value || "1:00-3:00 PM",
+          dinnerTime: dinnerTimeInput?.value || "5:15 PM",
+          dailyPace: dailyPaceInput?.value || activePlan?.pace || "balanced",
+          notes: builderNotesInput?.value.trim() || ""
+        };
+      }
+
+      function syncBuilderControls(plan: TripPlan) {
+        const builder = plan.builder || defaultBuilderSettings(plan.pace);
+        if (arrivalWindowInput) arrivalWindowInput.value = builder.arrivalWindow;
+        if (departureWindowInput) departureWindowInput.value = builder.departureWindow;
+        if (napWindowInput) napWindowInput.value = builder.napWindow;
+        if (dinnerTimeInput) dinnerTimeInput.value = builder.dinnerTime;
+        if (dailyPaceInput) dailyPaceInput.value = builder.dailyPace || plan.pace;
+        if (builderNotesInput) builderNotesInput.value = builder.notes || "";
       }
 
       function makeCategories(destination: string, origin: string, profile: ReturnType<typeof profileDestination>, budget: Budget, priorities: string[], pace: string): PlanCategory[] {
@@ -797,7 +959,7 @@ import {
             const link = optionFragment.querySelector<HTMLAnchorElement>(".option-link");
 
             if (!optionCard || !checkbox || !name || !price || !why || !meta || !link) return;
-            checkbox.checked = index === 0 || plan.selectedOptionIds.includes(option.id);
+            checkbox.checked = plan.selectedOptionIds.includes(option.id);
             optionCard.dataset.optionId = option.id;
             name.textContent = option.name;
             price.textContent = option.price;
@@ -805,15 +967,107 @@ import {
             renderMetaPills(meta, [option.timing, ...(option.tags || [])]);
             link.href = option.link;
             link.textContent = category.key === "flights" ? "Search flights" : "Open search";
-            if (checkbox.checked && !plan.selectedOptionIds.includes(option.id)) {
-              plan.selectedOptionIds.push(option.id);
-            }
             checkbox.addEventListener("change", () => updateSelection(option.id, checkbox.checked));
             list.append(optionFragment);
           });
 
           resultGrid.append(fragment);
         });
+
+        renderBuilder(plan);
+      }
+
+      function renderBuilder(plan: TripPlan | null) {
+        if (!builderSelectedList || !builderTitle || !builderCount || !buildItineraryButton) return;
+        if (!plan) {
+          builderTitle.textContent = "Choose options before building the itinerary.";
+          builderCount.textContent = "0 options";
+          buildItineraryButton.disabled = true;
+          builderSelectedList.innerHTML = `
+            <article class="empty-state compact-empty">
+              <h3>No options selected yet.</h3>
+              <p>Generate a board, then add the lodging, flights, meals, and activities you want.</p>
+            </article>
+          `;
+          return;
+        }
+
+        syncBuilderControls(plan);
+        const selected = selectedOptionsByCategory(plan);
+        const selectedCount = selected.reduce((total, group) => total + group.options.length, 0);
+        builderTitle.textContent = `${plan.destination} trip builder`;
+        builderCount.textContent = `${selectedCount} option${selectedCount === 1 ? "" : "s"}`;
+        buildItineraryButton.disabled = !selectedCount;
+
+        if (!selectedCount) {
+          builderSelectedList.innerHTML = `
+            <article class="empty-state compact-empty">
+              <h3>No options selected yet.</h3>
+              <p>Add at least one option from the AI suggestions before building the itinerary.</p>
+            </article>
+          `;
+          return;
+        }
+
+        builderSelectedList.innerHTML = selected
+          .map((group) => {
+            const items = group.options
+              .map(
+                (option) => `
+                  <article class="builder-selected-card">
+                    <div>
+                      <p>${escapeHtml(group.kicker)}</p>
+                      <h3>${escapeHtml(option.name)}</h3>
+                      <span>${escapeHtml(option.price)} | ${escapeHtml(option.timing)}</span>
+                    </div>
+                    <div class="builder-card-actions">
+                      <a href="${escapeHtml(option.link)}" target="_blank" rel="noreferrer">Research</a>
+                      <button type="button" data-remove-option="${escapeHtml(option.id)}">Remove</button>
+                    </div>
+                  </article>
+                `
+              )
+              .join("");
+            return `
+              <section class="builder-category">
+                <div class="builder-category-header">
+                  <strong>${escapeHtml(group.kicker)}</strong>
+                  <a href="#results" data-focus-category="${escapeHtml(group.key)}">Add more</a>
+                </div>
+                ${items}
+              </section>
+            `;
+          })
+          .join("");
+
+        builderSelectedList.querySelectorAll<HTMLButtonElement>("[data-remove-option]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const optionId = button.dataset.removeOption;
+            if (!optionId) return;
+            updateSelection(optionId, false, true);
+          });
+        });
+
+        builderSelectedList.querySelectorAll<HTMLAnchorElement>("[data-focus-category]").forEach((link) => {
+          link.addEventListener("click", () => {
+            const category = link.dataset.focusCategory;
+            const card = category ? resultGrid?.querySelector<HTMLElement>(`[data-category="${category}"]`) : null;
+            card?.scrollIntoView({ behavior: "smooth", block: "center" });
+          });
+        });
+      }
+
+      function selectedOptionsByCategory(plan: TripPlan) {
+        return plan.categories
+          .map((category) => {
+            const options = category.options.filter((option) => plan.selectedOptionIds.includes(option.id));
+            return {
+              key: category.key,
+              kicker: category.kicker || category.title,
+              options
+            };
+          })
+          .filter((group) => group.options.length);
       }
 
       function setLoadingState(isLoading: boolean, data?: FormData) {
@@ -821,6 +1075,7 @@ import {
         if (generateButton) generateButton.disabled = isLoading;
         if (generateButtonLabel) generateButtonLabel.textContent = isLoading ? "Building options..." : "Generate options";
         if (!isLoading && buildTripButton && !activePlan) buildTripButton.disabled = true;
+        if (!isLoading && buildItineraryButton && !activePlan) buildItineraryButton.disabled = true;
         if (!isLoading && saveButton && !activePlan) saveButton.disabled = true;
         if (!isLoading && downloadButton && !activePlan) downloadButton.disabled = true;
 
@@ -835,6 +1090,7 @@ import {
         saveButton.disabled = true;
         downloadButton.disabled = true;
         buildTripButton.disabled = true;
+        if (buildItineraryButton) buildItineraryButton.disabled = true;
         resultGrid.innerHTML = ["Lodging", "Flights", "Restaurants", "Things to do"]
           .map(
             (label) => `
@@ -881,17 +1137,20 @@ import {
           });
       }
 
-      function updateSelection(optionId: string, selected: boolean) {
+      function updateSelection(optionId: string, selected: boolean, rerenderOptions = false) {
         if (!activePlan) return;
         activePlan.selectedOptionIds = selected
           ? Array.from(new Set([...activePlan.selectedOptionIds, optionId]))
           : activePlan.selectedOptionIds.filter((id) => id !== optionId);
         activePlan.itinerary = [];
+        renderBuilder(activePlan);
         renderItinerary(activePlan);
+        if (rerenderOptions) renderPlan(activePlan);
       }
 
       async function buildTripItinerary() {
         if (!activePlan) return;
+        activePlan.builder = getBuilderSettings();
         setItineraryLoading(true);
         try {
           const token = await getAccessToken();
@@ -939,9 +1198,11 @@ import {
       function setItineraryLoading(isLoading: boolean) {
         document.body.classList.toggle("is-loading", isLoading);
         if (buildTripButton) buildTripButton.disabled = isLoading;
+        if (buildItineraryButton) buildItineraryButton.disabled = isLoading;
         if (!itineraryGrid || !itineraryTitle) return;
         if (!isLoading) {
           if (buildTripButton) buildTripButton.disabled = !activePlan;
+          if (buildItineraryButton) buildItineraryButton.disabled = !activePlan || !activePlan.selectedOptionIds.length;
           return;
         }
         itineraryTitle.textContent = "Building a toddler-aware itinerary...";
@@ -981,9 +1242,11 @@ import {
         const food = itineraryOptions(plan, "food");
         const activities = itineraryOptions(plan, "activities");
         const flights = selectedOptions(plan, "flights");
+        const builder = plan.builder || defaultBuilderSettings(plan.pace);
         const base = lodging[0]?.name || "chosen lodging base";
         const outbound = flights[0]?.name || "arrival travel";
-        const days = Math.min(plan.nights + 1, plan.pace === "full" ? 6 : 5);
+        const dayPace = builder.dailyPace || plan.pace;
+        const days = Math.min(plan.nights + 1, dayPace === "full" ? 6 : 5);
 
         return Array.from({ length: days }, (_, index) => {
           const day = index + 1;
@@ -995,11 +1258,11 @@ import {
             return {
               day,
               title: "Arrival and settle-in",
-              morning: outbound,
+              morning: `${capitalize(builder.arrivalWindow)} arrival target: ${outbound}`,
               lunch: meal?.name || "simple airport or arrival lunch",
               afternoon: `Check into ${base}, stock snacks, and keep the first outing optional.`,
-              dinner: backupMeal?.name || "easy early dinner near the hotel",
-              notes: "Protect bedtime and do not make arrival day carry the trip."
+              dinner: `${builder.dinnerTime} dinner: ${backupMeal?.name || "easy early dinner near the hotel"}`,
+              notes: builder.notes || "Protect bedtime and do not make arrival day carry the trip."
             };
           }
 
@@ -1009,7 +1272,7 @@ import {
               title: "Easy departure day",
               morning: "Pack, breakfast, and one short walk or playground stop.",
               lunch: meal?.name || "quick lunch before travel",
-              afternoon: "Return flight buffer, stroller gate-check, and snack reset.",
+              afternoon: `${capitalize(builder.departureWindow)} departure buffer, stroller gate-check, and snack reset.`,
               dinner: "Home or airport fallback meal.",
               notes: "No ticketed activity unless the flight is late afternoon or evening."
             };
@@ -1020,9 +1283,9 @@ import {
             title: activity?.name || "Flexible family day",
             morning: activity ? `${activity.name}: ${activity.timing}` : "Choose one short morning anchor.",
             lunch: meal?.name || "counter-service lunch close to the morning area",
-            afternoon: plan.pace === "full" ? "Second short stop, then nap or pool reset." : `Nap or downtime at ${base}.`,
-            dinner: backupMeal?.name || "early casual dinner",
-            notes: plan.notes || "Keep one backup playground, coffee stop, or hotel reset ready."
+            afternoon: dayPace === "full" ? `Second short stop, then ${builder.napWindow} nap or pool reset.` : `${builder.napWindow} nap or downtime at ${base}.`,
+            dinner: `${builder.dinnerTime} dinner: ${backupMeal?.name || "early casual dinner"}`,
+            notes: builder.notes || plan.notes || "Keep one backup playground, coffee stop, or hotel reset ready."
           };
         });
       }
@@ -1047,19 +1310,74 @@ import {
         plan.itinerary.forEach((day) => {
           const card = document.createElement("article");
           card.className = "itinerary-card";
+          card.dataset.day = String(day.day);
           card.innerHTML = `
-            <p>Day ${day.day}</p>
-            <h3>${day.title}</h3>
-            <dl>
-              <div><dt>Morning</dt><dd>${day.morning}</dd></div>
-              <div><dt>Lunch</dt><dd>${day.lunch}</dd></div>
-              <div><dt>Afternoon</dt><dd>${day.afternoon}</dd></div>
-              <div><dt>Dinner</dt><dd>${day.dinner}</dd></div>
-            </dl>
-            <span>${day.notes}</span>
+            <div class="itinerary-card-top">
+              <p>Day ${day.day}</p>
+              <button type="button" data-regenerate-day="${day.day}">Regenerate</button>
+            </div>
+            <label>
+              <span>Title</span>
+              <input data-day-field="title" value="${escapeHtml(day.title)}" />
+            </label>
+            <div class="itinerary-edit-grid">
+              <label>
+                <span>Morning</span>
+                <textarea data-day-field="morning" rows="3">${escapeHtml(day.morning)}</textarea>
+              </label>
+              <label>
+                <span>Lunch</span>
+                <textarea data-day-field="lunch" rows="3">${escapeHtml(day.lunch)}</textarea>
+              </label>
+              <label>
+                <span>Afternoon</span>
+                <textarea data-day-field="afternoon" rows="3">${escapeHtml(day.afternoon)}</textarea>
+              </label>
+              <label>
+                <span>Dinner</span>
+                <textarea data-day-field="dinner" rows="3">${escapeHtml(day.dinner)}</textarea>
+              </label>
+            </div>
+            <label>
+              <span>Notes</span>
+              <textarea data-day-field="notes" rows="3">${escapeHtml(day.notes)}</textarea>
+            </label>
           `;
           itineraryGrid.append(card);
         });
+
+        itineraryGrid.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-day-field]").forEach((field) => {
+          field.addEventListener("input", () => {
+            const card = field.closest<HTMLElement>(".itinerary-card");
+            const dayNumber = Number(card?.dataset.day || 0);
+            const key = field.dataset.dayField || "";
+            const target = activePlan?.itinerary.find((item) => item.day === dayNumber);
+            if (!target || !key) return;
+            updateItineraryField(target, key, field.value);
+          });
+        });
+
+        itineraryGrid.querySelectorAll<HTMLButtonElement>("[data-regenerate-day]").forEach((button) => {
+          button.addEventListener("click", () => {
+            if (!activePlan) return;
+            activePlan.builder = getBuilderSettings();
+            const dayNumber = Number(button.dataset.regenerateDay || 0);
+            const refreshed = buildItinerary(activePlan).find((day) => day.day === dayNumber);
+            const index = activePlan.itinerary.findIndex((day) => day.day === dayNumber);
+            if (!refreshed || index < 0) return;
+            activePlan.itinerary[index] = refreshed;
+            renderItinerary(activePlan);
+          });
+        });
+      }
+
+      function updateItineraryField(day: ItineraryDay, key: string, value: string) {
+        if (key === "title") day.title = value;
+        if (key === "morning") day.morning = value;
+        if (key === "lunch") day.lunch = value;
+        if (key === "afternoon") day.afternoon = value;
+        if (key === "dinner") day.dinner = value;
+        if (key === "notes") day.notes = value;
       }
 
       function selectedOptions(plan: TripPlan, category: string) {
@@ -1154,6 +1472,7 @@ import {
               activePlan = normalizeSavedPlan(plan);
               renderPlan(activePlan);
               renderItinerary(activePlan);
+              renderBuilder(activePlan);
               await renderSavedPlans();
               document.querySelector("#results")?.scrollIntoView({ behavior: "smooth" });
             }
@@ -1192,6 +1511,7 @@ import {
           })
           .join("");
         const prioritySummary = plan.priorities?.length ? plan.priorities.join(", ") : "Flexible";
+        const builder = plan.builder || defaultBuilderSettings(plan.pace);
         const budgetSummary = [
           ["Lodging", `$${plan.budget?.lodging || 0}/night`],
           ["Flights", `$${plan.budget?.flight || 0}/person`],
@@ -1240,7 +1560,10 @@ import {
           <div class="saved-detail-meta">
             <span><strong>Pace</strong>${escapeHtml(plan.pace)}</span>
             <span><strong>Priorities</strong>${escapeHtml(prioritySummary)}</span>
-            <span><strong>Notes</strong>${escapeHtml(plan.notes || "None added")}</span>
+            <span><strong>Nap and dinner</strong>${escapeHtml(`${builder.napWindow}, ${builder.dinnerTime}`)}</span>
+            <span><strong>Arrival / departure</strong>${escapeHtml(`${builder.arrivalWindow} / ${builder.departureWindow}`)}</span>
+            <span><strong>Builder pace</strong>${escapeHtml(builder.dailyPace)}</span>
+            <span><strong>Notes</strong>${escapeHtml(builder.notes || plan.notes || "None added")}</span>
           </div>
           <div class="saved-budget-row">${budgetSummary}</div>
           <ul class="saved-detail-list">${categorySummary}</ul>
@@ -1254,12 +1577,14 @@ import {
               activePlan = normalizeSavedPlan(plan);
               renderPlan(activePlan);
               renderItinerary(activePlan);
+              renderBuilder(activePlan);
               document.querySelector("#results")?.scrollIntoView({ behavior: "smooth" });
             }
             if (action === "view-itinerary") {
               activePlan = normalizeSavedPlan(plan);
               renderPlan(activePlan);
               renderItinerary(activePlan);
+              renderBuilder(activePlan);
               document.querySelector("#itinerary")?.scrollIntoView({ behavior: "smooth" });
             }
             if (action === "export") {
@@ -1287,6 +1612,7 @@ import {
           ...plan,
           title: plan.title || "",
           selectedOptionIds: plan.selectedOptionIds || [],
+          builder: plan.builder || defaultBuilderSettings(plan.pace),
           itinerary: plan.itinerary || []
         };
       }
@@ -1442,6 +1768,10 @@ import {
 
       function slugify(value: string) {
         return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      }
+
+      function capitalize(value: string) {
+        return value ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : "";
       }
 
       initializeAuth();

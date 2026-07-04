@@ -145,6 +145,7 @@ body.is-loading * {
 
 .planner-panel,
 .results-layout,
+.builder-layout,
 .itinerary-layout,
 .saved-layout {
   background: rgba(255, 255, 255, 0.92);
@@ -433,6 +434,7 @@ textarea:focus {
 }
 
 .results-layout,
+.builder-layout,
 .itinerary-layout,
 .saved-layout {
   display: grid;
@@ -443,6 +445,10 @@ textarea:focus {
 
 .results-layout {
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.builder-layout {
+  grid-template-columns: 1fr;
 }
 
 .section-title h2 {
@@ -491,6 +497,134 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 14px;
+}
+
+.builder-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  gap: 14px;
+}
+
+.selected-builder,
+.builder-controls {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.builder-subhead,
+.builder-category-header,
+.itinerary-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.builder-subhead strong,
+.builder-category-header strong {
+  color: var(--teal-dark);
+  font-size: 0.82rem;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.builder-subhead span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.builder-selected-list {
+  display: grid;
+  gap: 12px;
+}
+
+.builder-category {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.builder-category + .builder-category {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.builder-category-header a,
+.builder-card-actions a,
+.builder-card-actions button,
+.itinerary-card-top button {
+  color: var(--blue);
+  font-size: 0.86rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.builder-selected-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  background: #f8faf7;
+  border: 1px solid #dfe8e2;
+  border-radius: 8px;
+}
+
+.builder-selected-card p,
+.builder-selected-card h3,
+.builder-selected-card span {
+  margin: 0;
+}
+
+.builder-selected-card p {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.builder-selected-card h3 {
+  margin-top: 3px;
+  font-size: 1rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.builder-selected-card span {
+  display: block;
+  margin-top: 6px;
+  color: #3a464b;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.builder-card-actions {
+  display: grid;
+  align-content: start;
+  justify-items: end;
+  gap: 8px;
+}
+
+.builder-card-actions button,
+.itinerary-card-top button {
+  min-height: 34px;
+  padding: 0 10px;
+  background: #edf6f3;
+  border: 1px solid #cce2db;
+  border-radius: 8px;
+}
+
+.compact-empty {
+  min-height: 180px;
+  padding: 22px;
 }
 
 .result-card,
@@ -797,21 +931,22 @@ textarea:focus {
 
 .itinerary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 14px;
 }
 
 .itinerary-card {
   display: grid;
-  gap: 14px;
-  min-height: 350px;
+  align-content: start;
+  gap: 12px;
+  min-height: 420px;
   padding: 18px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 8px;
 }
 
-.itinerary-card p {
+.itinerary-card-top p {
   margin: 0;
   color: var(--teal);
   font-size: 0.78rem;
@@ -820,45 +955,39 @@ textarea:focus {
   text-transform: uppercase;
 }
 
-.itinerary-card h3 {
-  margin: -8px 0 0;
-  font-size: 1.16rem;
-  line-height: 1.18;
-  letter-spacing: 0;
-}
-
-.itinerary-card dl {
+.itinerary-card label {
   display: grid;
-  gap: 10px;
-  margin: 0;
+  gap: 6px;
+  min-width: 0;
 }
 
-.itinerary-card div {
-  display: grid;
-  gap: 3px;
-}
-
-.itinerary-card dt {
+.itinerary-card label span {
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   font-weight: 850;
   text-transform: uppercase;
 }
 
-.itinerary-card dd {
-  margin: 0;
-  color: #3a464b;
-  line-height: 1.4;
-}
-
-.itinerary-card span {
-  align-self: end;
-  padding: 10px;
-  color: #15302e;
+.itinerary-card input,
+.itinerary-card textarea {
+  min-height: 42px;
+  padding: 9px 10px;
   font-size: 0.9rem;
   line-height: 1.35;
-  background: #edf6f3;
-  border-radius: 8px;
+}
+
+.itinerary-card textarea {
+  min-height: 112px;
+}
+
+.itinerary-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.itinerary-card div {
+  min-width: 0;
 }
 
 .saved-item {
@@ -1111,7 +1240,8 @@ textarea:focus {
 
 @media (max-width: 1180px) {
   .workspace,
-  .results-layout {
+  .results-layout,
+  .builder-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1168,6 +1298,7 @@ textarea:focus {
 
   .planner-panel,
   .results-layout,
+  .builder-layout,
   .itinerary-layout,
   .saved-layout {
     padding: 16px;
@@ -1182,6 +1313,7 @@ textarea:focus {
   .checkbox-list,
   .result-grid,
   .itinerary-grid,
+  .itinerary-edit-grid,
   .saved-list {
     grid-template-columns: 1fr;
   }
@@ -1241,6 +1373,14 @@ textarea:focus {
   .saved-item {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .builder-selected-card {
+    grid-template-columns: 1fr;
+  }
+
+  .builder-card-actions {
+    justify-items: start;
   }
 
   .saved-detail-header {

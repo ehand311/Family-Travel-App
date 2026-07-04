@@ -268,7 +268,8 @@ async function buildTripPlan(tripInput, env) {
 
 async function buildTripItinerary(plan, env) {
   const selected = selectedOptionSummaries(plan);
-  const days = Math.min(Math.max(2, Number(plan.nights || 4) + 1), 7);
+  const builder = plan.builder || defaultBuilderSettings(plan.pace);
+  const days = Math.min(Math.max(2, Number(plan.nights || 4) + 1), builder.dailyPace === "full" ? 7 : 6);
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -292,12 +293,16 @@ async function buildTripItinerary(plan, env) {
             nights: plan.nights,
             pace: plan.pace,
             notes: plan.notes,
+            builder,
             selectedOptions: selected,
             outputRules: [
               `Return exactly ${days} days.`,
               "Day 1 should be arrival-focused unless the trip context clearly says otherwise.",
               "Last day should be departure-focused.",
+              `Use the arrival window (${builder.arrivalWindow}), departure window (${builder.departureWindow}), nap window (${builder.napWindow}), and dinner time (${builder.dinnerTime}).`,
+              `Use the builder daily pace (${builder.dailyPace}) over the original trip pace when they differ.`,
               "Use morning anchors, early lunches, nap/down-time, early dinners, and one flexible backup note per day.",
+              "Apply builder notes when provided.",
               "Use selected restaurants and activities naturally, rotating them across days.",
               "Keep each field concise enough for a dashboard card."
             ]
@@ -466,6 +471,7 @@ function normalizeAiPlan(aiPlan, tripInput) {
     notes: tripInput.notes,
     createdAt: new Date().toISOString(),
     selectedOptionIds: categories.flatMap((category) => category.options[0]?.id || []).filter(Boolean),
+    builder: defaultBuilderSettings(tripInput.pace),
     itinerary: [],
     categories
   };
@@ -483,6 +489,7 @@ function normalizeIncomingPlan(plan) {
     budget: plan.budget || {},
     notes: cleanText(plan.notes),
     selectedOptionIds: Array.isArray(plan.selectedOptionIds) ? plan.selectedOptionIds.map(cleanText).filter(Boolean) : [],
+    builder: normalizeBuilderSettings(plan.builder, cleanText(plan.pace) || "easy"),
     categories: Array.isArray(plan.categories) ? plan.categories : []
   };
 }
@@ -491,10 +498,9 @@ function selectedOptionSummaries(plan) {
   return (plan.categories || []).map((category) => {
     const options = Array.isArray(category.options) ? category.options : [];
     const selected = options.filter((option) => plan.selectedOptionIds.includes(option.id));
-    const useOptions = selected.length ? selected : options.slice(0, 1);
     return {
       category: category.key || category.title,
-      options: useOptions.map((option) => ({
+      options: selected.map((option) => ({
         name: option.name,
         price: option.price,
         why: option.why,
@@ -502,7 +508,30 @@ function selectedOptionSummaries(plan) {
         tags: option.tags || []
       }))
     };
-  });
+  }).filter((group) => group.options.length);
+}
+
+function defaultBuilderSettings(pace = "balanced") {
+  return {
+    arrivalWindow: "midday",
+    departureWindow: "midday",
+    napWindow: "1:00-3:00 PM",
+    dinnerTime: "5:15 PM",
+    dailyPace: pace === "full" ? "balanced" : pace || "balanced",
+    notes: ""
+  };
+}
+
+function normalizeBuilderSettings(builder = {}, pace = "balanced") {
+  const defaults = defaultBuilderSettings(pace);
+  return {
+    arrivalWindow: cleanText(builder.arrivalWindow) || defaults.arrivalWindow,
+    departureWindow: cleanText(builder.departureWindow) || defaults.departureWindow,
+    napWindow: cleanText(builder.napWindow) || defaults.napWindow,
+    dinnerTime: cleanText(builder.dinnerTime) || defaults.dinnerTime,
+    dailyPace: ["easy", "balanced", "full"].includes(builder.dailyPace) ? builder.dailyPace : defaults.dailyPace,
+    notes: cleanText(builder.notes)
+  };
 }
 
 function normalizeOptions(category, options, tripInput) {
