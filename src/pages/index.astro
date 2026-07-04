@@ -854,7 +854,9 @@ import {
             options: [
               makeOption("lodging", "Family suite near the easy base", Math.round(budget.lodging * 0.92), "per night", `Best fit if you want ${profile.bestArea}, stroller storage, a fridge, and low-friction naps.`, "Use as the main base for every night.", destination, ["suite", "walkable", priorities.includes("pool") ? "pool" : "quiet"]),
               makeOption("lodging", "Apartment-style stay with kitchen", Math.round(budget.lodging * 0.82), "per night", "Best fit for bottles, toddler breakfast, laundry, and eating one meal in the room each day.", "Use when kitchen access matters more than resort amenities.", destination, ["kitchen", "laundry", "family space"]),
-              makeOption("lodging", "Resort or hotel with pool reset", Math.round(budget.lodging * 1.08), "per night", "Best fit if the pool is part of the plan and you want an easy afternoon fallback.", "Use for arrival day, post-nap resets, and weather-proof downtime.", destination, ["pool", "onsite dining", "easy arrival"])
+              makeOption("lodging", "Resort or hotel with pool reset", Math.round(budget.lodging * 1.08), "per night", "Best fit if the pool is part of the plan and you want an easy afternoon fallback.", "Use for arrival day, post-nap resets, and weather-proof downtime.", destination, ["pool", "onsite dining", "easy arrival"]),
+              makeOption("lodging", "Quiet extended-stay hotel", Math.round(budget.lodging * 0.88), "per night", "Best fit for breakfast, parking, laundry, and a little more room for toddler gear.", "Use for longer trips or rental car plans.", destination, ["breakfast", "laundry", "parking"]),
+              makeOption("lodging", "Central hotel near parks", Math.round(budget.lodging * 1.12), "per night", "Best fit if paying a little more reduces rideshares and transition stress.", "Use when walkability matters more than room size.", destination, ["central", "parks nearby", "low drive"])
             ]
           },
           {
@@ -866,7 +868,9 @@ import {
             options: [
               makeFlightOption("flights", "Morning nonstop target", Math.round(budget.flight * 0.95), origin, destination, "Shortest travel day, best toddler odds, and fewer connection failure points.", "Outbound 8-10 a.m.; return before dinner."),
               makeFlightOption("flights", "One-stop with breathing room", Math.round(budget.flight * 0.82), origin, destination, "Usually cheaper while preserving a diaper/snack/stroller buffer between segments.", "Connection window around 75-110 minutes."),
-              makeFlightOption("flights", "Flexible fare watch", Math.round(budget.flight * 1.05), origin, destination, "Useful if points, companion pass, or Southwest fare changes can improve the final booking.", "Track fare drops after the first booking.")
+              makeFlightOption("flights", "Flexible fare watch", Math.round(budget.flight * 1.05), origin, destination, "Useful if points, companion pass, or Southwest fare changes can improve the final booking.", "Track fare drops after the first booking."),
+              makeFlightOption("flights", "Midday departure strategy", Math.round(budget.flight * 1.0), origin, destination, "Avoids very early wakeups and can line up with car naps.", "Depart late morning or early afternoon."),
+              makeFlightOption("flights", "Evening return buffer", Math.round(budget.flight * 0.9), origin, destination, "Keeps the last day calm and avoids rushing checkout.", "Return after an early dinner if available.")
             ]
           },
           {
@@ -878,7 +882,14 @@ import {
             options: [
               makeOption("food", profile.restaurantNames[0], Math.round(budget.food * 0.78), "meal for 4", "Fast casual, flexible seating, and a menu that can work for toddlers and adults.", "Good lunch or first-night dinner.", destination, ["quick", "kid-friendly", "low wait"]),
               makeOption("food", profile.restaurantNames[1], Math.round(budget.food * 1.05), "meal for 4", "A more memorable local meal that still works with early dinner timing.", "Book or arrive around 5:00 p.m.", destination, ["local favorite", "early dinner", "patio"]),
-              makeOption("food", "Grocery + breakfast setup", Math.round(budget.food * 0.55), "stock-up", "Milk, fruit, pouches, easy breakfasts, and parent coffee supplies reduce morning friction.", "Do this on arrival day.", destination, ["breakfast", "snacks", "room reset"])
+              makeOption("food", "Grocery + breakfast setup", Math.round(budget.food * 0.55), "stock-up", "Milk, fruit, pouches, easy breakfasts, and parent coffee supplies reduce morning friction.", "Do this on arrival day.", destination, ["breakfast", "snacks", "room reset"]),
+              makeOption("food", profile.restaurantNames[2], Math.round(budget.food * 0.9), "meal for 4", "Good backup when you want something easy but still local.", "Use for breakfast or lunch.", destination, ["easy", "local", "flexible"]),
+              makeOption("food", "Outdoor patio dinner", Math.round(budget.food * 1.1), "meal for 4", "Outdoor seating gives toddlers more margin and lowers noise stress.", "Book around 5:00 p.m.", destination, ["patio", "early dinner", "space"]),
+              makeOption("food", "Pizza or casual Italian night", Math.round(budget.food * 0.88), "meal for 4", "Reliable kid food and leftovers make it a strong backup.", "Use after a bigger activity day.", destination, ["pizza", "leftovers", "easy"]),
+              makeOption("food", "Counter-service lunch stop", Math.round(budget.food * 0.7), "meal for 4", "Fast ordering and easy exits are useful around nap timing.", "Use near the morning activity.", destination, ["quick lunch", "low wait", "nap-friendly"]),
+              makeOption("food", "Local dessert or treat stop", Math.round(budget.food * 0.35), "treat stop", "A small reward stop that does not anchor the whole day.", "Use after nap or before a walk.", destination, ["treat", "short stop", "fun"]),
+              makeOption("food", "Hotel picnic dinner", Math.round(budget.food * 0.6), "meal for 4", "Simple room or park dinner can save a tired evening.", "Use after travel or pool time.", destination, ["low effort", "room reset", "budget"]),
+              makeOption("food", "Early local favorite", Math.round(budget.food * 1.2), "meal for 4", "Adds one memorable meal without forcing a late night.", "Use on the easiest full day.", destination, ["memorable", "early", "local"])
             ]
           },
           {
@@ -890,7 +901,14 @@ import {
             options: [
               makeOption("activities", profile.activityNames[0], Math.round(budget.activity * 0.95), "family", profile.activityWhy[0], "Best as the first full morning.", destination, ["anchor", "morning", "stroller-aware"]),
               makeOption("activities", profile.activityNames[1], Math.round(budget.activity * 0.35), "family", profile.activityWhy[1], "Use after breakfast or before nap.", destination, ["low cost", "easy exit", "outdoors"]),
-              makeOption("activities", profile.activityNames[2], Math.round(budget.activity * 0.7), "family", profile.activityWhy[2], "Save as a weather-proof or low-energy option.", destination, ["backup", "short visit", "flexible"])
+              makeOption("activities", profile.activityNames[2], Math.round(budget.activity * 0.7), "family", profile.activityWhy[2], "Save as a weather-proof or low-energy option.", destination, ["backup", "short visit", "flexible"]),
+              makeOption("activities", "Splash pad or hotel pool block", Math.round(budget.activity * 0.2), "family", "Low-pressure water play is a reliable afternoon reset.", "Use after nap.", destination, ["water play", "reset", "easy"]),
+              makeOption("activities", "Scenic stroller walk", Math.round(budget.activity * 0.1), "family", "Gives parents a sense of place while keeping toddlers moving.", "Use before lunch.", destination, ["stroller", "low cost", "outdoors"]),
+              makeOption("activities", "Library or indoor play backup", Math.round(budget.activity * 0.15), "family", "Good low-cost fallback for weather or overstimulation.", "Use as a flexible backup.", destination, ["indoor", "quiet", "backup"]),
+              makeOption("activities", "Short nature center visit", Math.round(budget.activity * 0.45), "family", "Outdoor learning with easy pacing and quick exits.", "Best in the morning.", destination, ["nature", "short visit", "easy exit"]),
+              makeOption("activities", "Transit or boat ride experience", Math.round(budget.activity * 0.65), "family", "The ride itself becomes the activity without too much walking.", "Use on a balanced day.", destination, ["ride", "low walk", "novelty"]),
+              makeOption("activities", "Low-key neighborhood explore", Math.round(budget.activity * 0.2), "family", "Pairs snacks, shops, and a playground without a big commitment.", "Use for a light day.", destination, ["flexible", "snacks", "walkable"]),
+              makeOption("activities", "Rainy-day mall or play cafe", Math.round(budget.activity * 0.55), "family", "Useful backup when weather or energy changes fast.", "Save for backup.", destination, ["rainy day", "indoor", "backup"])
             ]
           }
         ];
@@ -1104,7 +1122,7 @@ import {
                   </div>
                 </div>
                 <div class="option-list">
-                  ${[1, 2, 3]
+                  ${[1, 2, 3, 4, 5]
                     .map(
                       () => `
                         <article class="option-card skeleton-option">

@@ -231,7 +231,10 @@ async function buildTripPlan(tripInput, env) {
             tripInput,
             outputRules: [
               "Return exactly four categories: lodging, flights, food, activities.",
-              "Each category should contain three strong options.",
+              "Return exactly 5 lodging options.",
+              "Return exactly 5 flight options, Southwest-first whenever possible.",
+              "Return up to 10 restaurant options; prefer 10 unless the destination is very sparse.",
+              "Return up to 10 activity options; prefer 10 with a mix of paid, free, indoor, outdoor, and low-energy choices.",
               "Use specific hotel/property or neighborhood names, Southwest-first flight strategy names, specific restaurants, and specific activities where possible.",
               "Respect the stated budgets as upper targets.",
               "Keep price strings short enough for compact cards, for example '$280/night', '~$320/person', '$65/family', or 'Free'.",
@@ -252,7 +255,7 @@ async function buildTripPlan(tripInput, env) {
           schema: tripOptionsSchema()
         }
       },
-      max_output_tokens: 4500
+      max_output_tokens: 9000
     })
   });
 
@@ -538,7 +541,7 @@ function normalizeOptions(category, options, tripInput) {
   const fallback = fallbackOptions(category, tripInput);
   const source = options.length ? options : fallback;
 
-  return source.slice(0, 3).map((option, index) => {
+  return source.slice(0, optionLimit(category)).map((option, index) => {
     const name = cleanText(option.name) || fallback[index]?.name || categoryTitle(category);
     const searchQuery = cleanText(option.searchQuery) || `${name} ${tripInput.destination}`;
     return {
@@ -553,6 +556,10 @@ function normalizeOptions(category, options, tripInput) {
       tags: Array.isArray(option.tags) && option.tags.length ? option.tags.slice(0, 4).map(cleanText) : fallback[index]?.tags || ["family-friendly"]
     };
   });
+}
+
+function optionLimit(category) {
+  return category === "lodging" || category === "flights" ? 5 : 10;
 }
 
 function normalizeTripInput(input) {
@@ -613,22 +620,40 @@ function fallbackOptions(category, tripInput) {
     lodging: [
       ["Family suite in a walkable base", tripInput.lodgingBudget * 0.92, "per night", "A practical base with room for toddler gear, snacks, and nap resets.", "Use for every night."],
       ["Apartment-style stay with kitchen", tripInput.lodgingBudget * 0.82, "per night", "Kitchen and laundry access reduce meal and packing friction.", "Best when routines matter."],
-      ["Hotel or resort with pool reset", tripInput.lodgingBudget * 1.05, "per night", "Built-in downtime makes afternoons easier.", "Use for weather or post-nap resets."]
+      ["Hotel or resort with pool reset", tripInput.lodgingBudget * 1.05, "per night", "Built-in downtime makes afternoons easier.", "Use for weather or post-nap resets."],
+      ["Quiet extended-stay hotel", tripInput.lodgingBudget * 0.88, "per night", "Extra space, breakfast, and simple parking are helpful with toddler gear.", "Good for longer trips or rental car plans."],
+      ["Central hotel near parks", tripInput.lodgingBudget * 1.12, "per night", "Higher nightly rate can reduce rideshares, parking, and transition stress.", "Best when walkability matters most."]
     ],
     flights: [
       ["Southwest morning nonstop target", tripInput.flightBudget * 0.95, "per person", "Shortest travel day and best odds with toddlers.", "Aim for 8-10 a.m."],
       ["Southwest one-stop with buffer", tripInput.flightBudget * 0.82, "per person", "Often cheaper while preserving diaper and snack time.", "Target 75-110 minute layover."],
-      ["Southwest flexible fare watch", tripInput.flightBudget * 1.05, "per person", "Useful for points and fare-drop rebooking.", "Track after booking."]
+      ["Southwest flexible fare watch", tripInput.flightBudget * 1.05, "per person", "Useful for points and fare-drop rebooking.", "Track after booking."],
+      ["Midday departure strategy", tripInput.flightBudget * 1.0, "per person", "Avoids very early wakeups and can line up with car naps.", "Depart late morning or early afternoon."],
+      ["Evening return buffer", tripInput.flightBudget * 0.9, "per person", "Keeps the last day calm and avoids rushing checkout.", "Return after an early dinner if available."]
     ],
     food: [
       ["Family-friendly local cafe", tripInput.foodBudget * 0.78, "meal for 4", "Fast seating and flexible menus help with early meals.", "Good lunch or first dinner."],
       ["Casual market hall", tripInput.foodBudget * 1.05, "meal for 4", "Multiple choices reduce toddler menu risk.", "Use for early dinner."],
-      ["Grocery and breakfast setup", tripInput.foodBudget * 0.55, "stock-up", "Milk, fruit, snacks, and parent coffee smooth out mornings.", "Do this on arrival day."]
+      ["Grocery and breakfast setup", tripInput.foodBudget * 0.55, "stock-up", "Milk, fruit, snacks, and parent coffee smooth out mornings.", "Do this on arrival day."],
+      ["Breakfast spot with quick service", tripInput.foodBudget * 0.72, "meal for 4", "A dependable breakfast option prevents slow starts.", "Use before the first activity."],
+      ["Outdoor patio restaurant", tripInput.foodBudget * 1.1, "meal for 4", "Outdoor seating gives toddlers more margin and lowers noise stress.", "Book around 5:00 p.m."],
+      ["Pizza or casual Italian night", tripInput.foodBudget * 0.88, "meal for 4", "Reliable kid food and leftovers make it a strong backup.", "Use after a bigger activity day."],
+      ["Counter-service lunch stop", tripInput.foodBudget * 0.7, "meal for 4", "Fast ordering and easy exits are useful around nap timing.", "Use near the morning activity."],
+      ["Local dessert or treat stop", tripInput.foodBudget * 0.35, "treat stop", "Small reward stop that does not anchor the whole day.", "Use after nap or before a walk."],
+      ["Hotel picnic dinner", tripInput.foodBudget * 0.6, "meal for 4", "Simple room or park dinner can save a tired evening.", "Use after travel or pool time."],
+      ["Early seafood or local favorite", tripInput.foodBudget * 1.2, "meal for 4", "Adds one memorable meal without forcing a late night.", "Use on the easiest full day."]
     ],
     activities: [
       ["Top family attraction", tripInput.activityBudget * 0.95, "family", "One memorable anchor without overloading the day.", "Best first full morning."],
       ["Nearby playground or waterfront walk", tripInput.activityBudget * 0.25, "family", "Low-cost reset with an easy exit.", "Use before nap."],
-      ["Children-friendly museum or aquarium", tripInput.activityBudget * 0.7, "family", "Weather-proof backup with short-visit flexibility.", "Save for backup."]
+      ["Children-friendly museum or aquarium", tripInput.activityBudget * 0.7, "family", "Weather-proof backup with short-visit flexibility.", "Save for backup."],
+      ["Splash pad or hotel pool block", tripInput.activityBudget * 0.2, "family", "Low-pressure water play is a reliable afternoon reset.", "Use after nap."],
+      ["Scenic stroller walk", tripInput.activityBudget * 0.1, "family", "Gives parents a sense of place while keeping toddlers moving.", "Use before lunch."],
+      ["Library or indoor play backup", tripInput.activityBudget * 0.15, "family", "Good low-cost fallback for weather or overstimulation.", "Use as a flexible backup."],
+      ["Short nature center visit", tripInput.activityBudget * 0.45, "family", "Outdoor learning with easy pacing and quick exits.", "Best in the morning."],
+      ["Transit or boat ride experience", tripInput.activityBudget * 0.65, "family", "The ride itself becomes the activity without too much walking.", "Use on a balanced day."],
+      ["Low-key neighborhood explore", tripInput.activityBudget * 0.2, "family", "Pairs snacks, shops, and a playground without a big commitment.", "Use for a light day."],
+      ["Rainy-day mall or play cafe", tripInput.activityBudget * 0.55, "family", "Useful backup when weather or energy changes fast.", "Save for backup."]
     ]
   };
 

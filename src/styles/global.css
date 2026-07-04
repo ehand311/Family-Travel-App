@@ -638,7 +638,7 @@ textarea:focus {
 .result-card {
   display: grid;
   align-content: start;
-  min-height: 420px;
+  min-height: 520px;
   padding: 18px;
 }
 
@@ -720,13 +720,36 @@ textarea:focus {
 
 .option-list {
   display: grid;
+  align-content: start;
   gap: 10px;
+  max-height: min(430px, 58vh);
+  padding-right: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #b7cbc5 #eef4f2;
+  scrollbar-width: thin;
+}
+
+.option-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.option-list::-webkit-scrollbar-track {
+  background: #eef4f2;
+  border-radius: 999px;
+}
+
+.option-list::-webkit-scrollbar-thumb {
+  background: #b7cbc5;
+  border: 2px solid #eef4f2;
+  border-radius: 999px;
 }
 
 .option-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  min-height: 150px;
   min-width: 0;
   overflow: hidden;
   padding: 12px;
