@@ -4,6 +4,10 @@
   "main": "./src/worker.js",
   "compatibility_date": "2026-07-03",
   "workers_dev": true,
+  "vars": {
+    "SUPABASE_URL": "https://vzertxhpbqzpenenlirc.supabase.co",
+    "OWNER_EMAIL": "erichandal@gmail.com"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
