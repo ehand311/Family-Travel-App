@@ -54,7 +54,7 @@ import {
           <div class="panel-heading">
             <p class="eyebrow"><Sparkles size={15} /> AI-ready planner</p>
             <h1>Build a family trip that respects nap time.</h1>
-            <p class="quota-status" id="quota-status">Public demo includes 3 AI searches. Sign in as owner for unlimited.</p>
+            <p class="quota-status" id="quota-status">Public demo includes 1 AI search. Sign in as owner for unlimited.</p>
           </div>
 
           <form class="trip-form" id="trip-form">
@@ -645,7 +645,7 @@ import {
 
         const used = getLocalSearchCount();
         authButton.textContent = "Sign in";
-        quotaStatus.textContent = `Public demo searches used locally: ${used}/3. Sign in as owner for unlimited.`;
+        quotaStatus.textContent = `Public demo AI searches used locally: ${used}/1. Sign in as owner for unlimited.`;
       }
 
       function isOwnerUser() {
@@ -705,7 +705,7 @@ import {
               if (quotaStatus) {
                 quotaStatus.textContent = result.isOwner
                   ? "Owner mode active. AI trip options generated."
-                  : `AI trip options generated. ${result.remaining} of 3 public searches remaining.`;
+                  : `AI trip options generated. ${result.remaining} public AI searches remaining.`;
               }
               return normalizeSavedPlan(result.plan);
             }
@@ -716,10 +716,9 @@ import {
           }
 
           if (response.status === 402 || response.status === 429) {
-            const result = await response.json().catch(() => ({ message: "Demo search limit reached. Sign in to continue." }));
+            const result = await response.json().catch(() => ({ message: "Demo AI search used. Showing mock trip data." }));
             if (quotaStatus) quotaStatus.textContent = result.message;
-            openAuthDialog();
-            return null;
+            return createPlan(data);
           }
 
           const result = await response.json().catch(() => ({ message: "AI generation failed. Using a local preview." }));
@@ -735,14 +734,13 @@ import {
         }
 
         const used = getLocalSearchCount();
-        if (used >= 3 && supabase) {
-          if (quotaStatus) quotaStatus.textContent = "Demo search limit reached. Sign in as owner to continue.";
-          openAuthDialog();
-          return null;
+        if (used >= 1 && supabase) {
+          if (quotaStatus) quotaStatus.textContent = "Demo AI search used. Showing mock trip data.";
+          return createPlan(data);
         }
 
         localStorage.setItem(localSearchKey, String(used + 1));
-        if (quotaStatus) quotaStatus.textContent = `Local preview search ${used + 1}/3. Production uses the server-side Supabase gate.`;
+        if (quotaStatus) quotaStatus.textContent = `Local preview AI search ${used + 1}/1. Production uses the server-side Supabase gate.`;
         return createPlan(data);
       }
 
@@ -1188,17 +1186,16 @@ import {
               if (quotaStatus) {
                 quotaStatus.textContent = result.isOwner
                   ? "Owner mode active. AI itinerary built."
-                  : `AI itinerary built. ${result.remaining} of 3 public AI requests remaining.`;
+                  : `AI itinerary built. ${result.remaining} public AI searches remaining.`;
               }
             } else {
               activePlan.itinerary = buildItinerary(activePlan);
               if (quotaStatus) quotaStatus.textContent = result.message || "Using local itinerary fallback.";
             }
           } else if (response.status === 402 || response.status === 429) {
-            const result = await response.json().catch(() => ({ message: "Demo AI limit reached. Sign in to continue." }));
+            const result = await response.json().catch(() => ({ message: "Demo AI search used. Built a mock itinerary instead." }));
             if (quotaStatus) quotaStatus.textContent = result.message;
-            openAuthDialog();
-            return;
+            activePlan.itinerary = buildItinerary(activePlan);
           } else {
             activePlan.itinerary = buildItinerary(activePlan);
             if (quotaStatus) quotaStatus.textContent = "AI itinerary unavailable. Built a local itinerary instead.";

@@ -1,4 +1,4 @@
-const ANON_LIMIT = 3;
+const ANON_LIMIT = 1;
 
 export default {
   async fetch(request, env) {
@@ -84,10 +84,10 @@ async function handleGenerateTrip(request, env) {
         configured: true,
         isOwner: false,
         remaining: 0,
-        message: "Demo search limit reached. Sign in as owner to continue.",
+        message: "Demo AI search used. Showing mock trip data for this request.",
         plan: null
       },
-      { status: 429, headers: cookieHeader }
+      { headers: cookieHeader }
     );
   }
 
@@ -161,10 +161,10 @@ async function handleBuildItinerary(request, env) {
           configured: true,
           isOwner: false,
           remaining: 0,
-          message: "Demo AI limit reached. Sign in as owner to build more itineraries.",
+          message: "Demo AI search used. Building a mock itinerary for this request.",
           itinerary: null
         },
-        { status: 429, headers: cookieHeader }
+        { headers: cookieHeader }
       );
     }
 

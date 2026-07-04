@@ -57,8 +57,8 @@ OPENAI_MODEL="gpt-4o-mini"
 The `/api/generate-trip` Worker endpoint is the server-side gate for paid AI calls:
 
 - Owner email signed in through Supabase: unlimited searches.
-- Anonymous visitor: 3 AI demo searches.
-- After 3 searches: endpoint returns a limit response and the UI opens sign-in.
+- Anonymous visitor: 1 AI demo search, then mock trip data.
+- After 1 AI search: endpoint returns a mock-fallback response instead of calling OpenAI.
 - Once a request is allowed, the Worker calls OpenAI and returns a structured trip board.
 - The `Build this trip` action can also call OpenAI to turn selected options into a day-by-day itinerary.
 - If OpenAI is unavailable, the UI falls back to local generation so the app remains usable.
