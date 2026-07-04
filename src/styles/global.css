@@ -868,21 +868,92 @@ textarea:focus {
   justify-content: space-between;
   gap: 16px;
   padding: 16px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.saved-item.is-selected {
+  border-color: rgba(15, 118, 110, 0.42);
+  box-shadow: inset 4px 0 0 var(--teal);
 }
 
 .saved-actions {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 8px;
   flex: 0 0 auto;
 }
 
 .saved-actions button {
   min-width: 44px;
+  min-height: 42px;
   padding: 0 12px;
   color: var(--teal-dark);
   font-weight: 850;
   background: #edf6f3;
   border: 1px solid #cce2db;
+}
+
+.saved-detail {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 14px;
+  min-height: 160px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.saved-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.saved-detail-header h3 {
+  margin: 4px 0 6px;
+  font-size: 1.28rem;
+  line-height: 1.1;
+}
+
+.saved-detail-header span {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.saved-detail-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.saved-detail-list li {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  background: #f8faf7;
+  border: 1px solid #dfe8e2;
+  border-radius: 8px;
+}
+
+.saved-detail-list strong {
+  color: var(--teal-dark);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.saved-detail-list span {
+  color: #3a464b;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .saved-actions button:hover,
@@ -964,6 +1035,10 @@ textarea:focus {
   }
 
   .saved-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .saved-detail-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1071,6 +1146,14 @@ textarea:focus {
   .saved-item {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .saved-detail-header {
+    flex-direction: column;
+  }
+
+  .saved-detail-list {
+    grid-template-columns: 1fr;
   }
 
   .auth-actions {

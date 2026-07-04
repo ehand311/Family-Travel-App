@@ -60,7 +60,8 @@ The `/api/generate-trip` Worker endpoint is the server-side gate for paid AI cal
 - Anonymous visitor: 3 AI demo searches.
 - After 3 searches: endpoint returns a limit response and the UI opens sign-in.
 - Once a request is allowed, the Worker calls OpenAI and returns a structured trip board.
-- If OpenAI is unavailable, the UI falls back to the local generator so the app remains usable.
+- The `Build this trip` action can also call OpenAI to turn selected options into a day-by-day itinerary.
+- If OpenAI is unavailable, the UI falls back to local generation so the app remains usable.
 
 ## Saved Trips
 

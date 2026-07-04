@@ -16,6 +16,14 @@ export default {
       return json({ message: "Method not allowed" }, { status: 405 });
     }
 
+    if (url.pathname === "/api/build-itinerary") {
+      if (request.method === "POST") {
+        return handleBuildItinerary(request, env);
+      }
+
+      return json({ message: "Method not allowed" }, { status: 405 });
+    }
+
     return env.ASSETS.fetch(request);
   }
 };
@@ -111,6 +119,96 @@ async function safelyBuildTripPlan(openAiKey, tripInput, env) {
   }
 }
 
+async function handleBuildItinerary(request, env) {
+  const visitorId = getVisitorId(request);
+  const nextVisitorId = visitorId || crypto.randomUUID();
+  const cookieHeader = makeVisitorCookie(nextVisitorId);
+  const body = await request.json().catch(() => ({}));
+  const plan = normalizeIncomingPlan(body.plan || {});
+  const supabaseUrl = normalizeSupabaseUrl(env.SUPABASE_URL);
+  const serviceRoleKey = cleanEnvValue(env.SUPABASE_SERVICE_ROLE_KEY);
+  const openAiKey = cleanEnvValue(env.OPENAI_API_KEY);
+  const config = {
+    ...env,
+    SUPABASE_URL: supabaseUrl,
+    SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey
+  };
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return json(
+      {
+        allowed: true,
+        configured: false,
+        isOwner: false,
+        remaining: ANON_LIMIT,
+        message: "Supabase is not configured yet. Local itinerary building is allowed.",
+        itinerary: null
+      },
+      { headers: cookieHeader }
+    );
+  }
+
+  const user = await getSupabaseUser(request, config);
+  const ownerEmail = cleanEnvValue(env.OWNER_EMAIL).toLowerCase();
+  const isOwner = Boolean(user?.email && ownerEmail && user.email.toLowerCase() === ownerEmail);
+
+  if (!isOwner) {
+    const quota = await incrementAnonymousUsage(config, nextVisitorId);
+    if (!quota.allowed) {
+      return json(
+        {
+          allowed: false,
+          configured: true,
+          isOwner: false,
+          remaining: 0,
+          message: "Demo AI limit reached. Sign in as owner to build more itineraries.",
+          itinerary: null
+        },
+        { status: 429, headers: cookieHeader }
+      );
+    }
+
+    const { itinerary, error } = await safelyBuildItinerary(openAiKey, plan, env);
+    return json(
+      {
+        allowed: true,
+        configured: true,
+        isOwner: false,
+        remaining: Math.max(0, ANON_LIMIT - quota.count),
+        message: itinerary ? "AI itinerary built." : error || "Itinerary build allowed, but OpenAI is not configured yet.",
+        itinerary
+      },
+      { headers: cookieHeader }
+    );
+  }
+
+  const { itinerary, error } = await safelyBuildItinerary(openAiKey, plan, env);
+  return json(
+    {
+      allowed: true,
+      configured: true,
+      isOwner: true,
+      remaining: null,
+      message: itinerary ? "Owner AI itinerary built." : error || "Owner itinerary build allowed, but OpenAI is not configured yet.",
+      itinerary
+    },
+    { headers: cookieHeader }
+  );
+}
+
+async function safelyBuildItinerary(openAiKey, plan, env) {
+  if (!openAiKey) {
+    return { itinerary: null, error: "OpenAI is not configured yet. Add OPENAI_API_KEY as a Cloudflare secret." };
+  }
+
+  try {
+    return { itinerary: await buildTripItinerary(plan, env), error: "" };
+  } catch (error) {
+    console.error("AI itinerary generation failed", error);
+    return { itinerary: null, error: "AI itinerary generation failed. Using a local itinerary instead." };
+  }
+}
+
 async function buildTripPlan(tripInput, env) {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -124,7 +222,7 @@ async function buildTripPlan(tripInput, env) {
         {
           role: "system",
           content:
-            "You are a practical family travel planner for parents traveling with toddlers. Generate researched-sounding options, but do not claim live availability or exact live prices. Use realistic estimates, specific searchable names, stroller-aware notes, early meals, nap windows, and short drives."
+            "You are a practical family travel planner for parents traveling with toddlers. Generate specific, searchable options with concise copy. Do not claim live availability, exact live prices, or guaranteed Southwest schedules. Use realistic estimates, real venue/property/area names when you know them, and toddler-aware tradeoffs: nap windows, stroller access, early meals, short drives, pool/down-time, kitchen/laundry, weather backups, and easy exits."
         },
         {
           role: "user",
@@ -134,8 +232,12 @@ async function buildTripPlan(tripInput, env) {
             outputRules: [
               "Return exactly four categories: lodging, flights, food, activities.",
               "Each category should contain three strong options.",
-              "Use specific hotel area/property style, Southwest-first flight route strategy, specific restaurants, and specific activities where possible.",
+              "Use specific hotel/property or neighborhood names, Southwest-first flight strategy names, specific restaurants, and specific activities where possible.",
               "Respect the stated budgets as upper targets.",
+              "Keep price strings short enough for compact cards, for example '$280/night', '~$320/person', '$65/family', or 'Free'.",
+              "Keep option names under 64 characters when possible.",
+              "Make why and timing practical, not salesy.",
+              "Avoid repeating the same tags or phrases across every card.",
               "Use searchQuery values that would work well as Google searches.",
               "For flights, use Southwest-focused search queries and family timing notes."
             ]
@@ -162,6 +264,66 @@ async function buildTripPlan(tripInput, env) {
   const result = await response.json();
   const text = extractResponseText(result);
   return normalizeAiPlan(JSON.parse(text), tripInput);
+}
+
+async function buildTripItinerary(plan, env) {
+  const selected = selectedOptionSummaries(plan);
+  const days = Math.min(Math.max(2, Number(plan.nights || 4) + 1), 7);
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${cleanEnvValue(env.OPENAI_API_KEY)}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: cleanEnvValue(env.OPENAI_MODEL) || "gpt-4o-mini",
+      input: [
+        {
+          role: "system",
+          content:
+            "You build realistic day-by-day family travel itineraries for parents with toddlers. Use the selected trip options, protect nap/bedtime, avoid overpacked days, minimize unnecessary driving, and include simple backup logic. Do not claim live availability or exact operating hours."
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            task: "Build an itinerary from the selected trip-board options.",
+            destination: plan.destination,
+            dateRange: plan.dateRange,
+            nights: plan.nights,
+            pace: plan.pace,
+            notes: plan.notes,
+            selectedOptions: selected,
+            outputRules: [
+              `Return exactly ${days} days.`,
+              "Day 1 should be arrival-focused unless the trip context clearly says otherwise.",
+              "Last day should be departure-focused.",
+              "Use morning anchors, early lunches, nap/down-time, early dinners, and one flexible backup note per day.",
+              "Use selected restaurants and activities naturally, rotating them across days.",
+              "Keep each field concise enough for a dashboard card."
+            ]
+          })
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "family_trip_itinerary",
+          strict: true,
+          schema: itinerarySchema()
+        }
+      },
+      max_output_tokens: 3600
+    })
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => "OpenAI itinerary request failed.");
+    throw new Error(message.slice(0, 500));
+  }
+
+  const result = await response.json();
+  const text = extractResponseText(result);
+  return normalizeAiItinerary(JSON.parse(text), days);
 }
 
 function tripOptionsSchema() {
@@ -204,6 +366,33 @@ function tripOptionsSchema() {
   };
 }
 
+function itinerarySchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["itinerary"],
+    properties: {
+      itinerary: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["day", "title", "morning", "lunch", "afternoon", "dinner", "notes"],
+          properties: {
+            day: { type: "number" },
+            title: { type: "string" },
+            morning: { type: "string" },
+            lunch: { type: "string" },
+            afternoon: { type: "string" },
+            dinner: { type: "string" },
+            notes: { type: "string" }
+          }
+        }
+      }
+    }
+  };
+}
+
 function extractResponseText(result) {
   if (typeof result.output_text === "string" && result.output_text.trim()) {
     return result.output_text;
@@ -217,6 +406,34 @@ function extractResponseText(result) {
 
   if (!text) throw new Error("OpenAI returned an empty response.");
   return text;
+}
+
+function normalizeAiItinerary(aiResult, days) {
+  const itinerary = Array.isArray(aiResult.itinerary) ? aiResult.itinerary : [];
+  const normalized = itinerary.slice(0, days).map((day, index) => ({
+    day: Number(day.day || index + 1),
+    title: cleanText(day.title) || `Day ${index + 1}`,
+    morning: cleanText(day.morning) || "Choose one easy morning anchor.",
+    lunch: cleanText(day.lunch) || "Early casual lunch close to the morning plan.",
+    afternoon: cleanText(day.afternoon) || "Nap, pool, or downtime reset.",
+    dinner: cleanText(day.dinner) || "Early dinner with a simple fallback.",
+    notes: cleanText(day.notes) || "Keep the day flexible and protect bedtime."
+  }));
+
+  while (normalized.length < days) {
+    const day = normalized.length + 1;
+    normalized.push({
+      day,
+      title: day === days ? "Easy departure day" : `Flexible family day ${day}`,
+      morning: day === days ? "Pack, breakfast, and one short optional stop." : "Choose one easy morning anchor.",
+      lunch: "Early casual lunch close to the day's plan.",
+      afternoon: day === days ? "Travel buffer, stroller reset, and snack backup." : "Nap, pool, or downtime reset.",
+      dinner: day === days ? "Home or simple travel-day dinner." : "Early dinner with a simple fallback.",
+      notes: "Keep the day flexible and protect bedtime."
+    });
+  }
+
+  return normalized;
 }
 
 function normalizeAiPlan(aiPlan, tripInput) {
@@ -252,6 +469,40 @@ function normalizeAiPlan(aiPlan, tripInput) {
     itinerary: [],
     categories
   };
+}
+
+function normalizeIncomingPlan(plan) {
+  return {
+    id: cleanText(plan.id),
+    destination: cleanText(plan.destination) || "your destination",
+    origin: cleanText(plan.origin),
+    dateRange: cleanText(plan.dateRange),
+    nights: numberOr(plan.nights, 4),
+    pace: cleanText(plan.pace) || "easy",
+    priorities: Array.isArray(plan.priorities) ? plan.priorities.map(cleanText).filter(Boolean) : [],
+    budget: plan.budget || {},
+    notes: cleanText(plan.notes),
+    selectedOptionIds: Array.isArray(plan.selectedOptionIds) ? plan.selectedOptionIds.map(cleanText).filter(Boolean) : [],
+    categories: Array.isArray(plan.categories) ? plan.categories : []
+  };
+}
+
+function selectedOptionSummaries(plan) {
+  return (plan.categories || []).map((category) => {
+    const options = Array.isArray(category.options) ? category.options : [];
+    const selected = options.filter((option) => plan.selectedOptionIds.includes(option.id));
+    const useOptions = selected.length ? selected : options.slice(0, 1);
+    return {
+      category: category.key || category.title,
+      options: useOptions.map((option) => ({
+        name: option.name,
+        price: option.price,
+        why: option.why,
+        timing: option.timing,
+        tags: option.tags || []
+      }))
+    };
+  });
 }
 
 function normalizeOptions(category, options, tripInput) {
